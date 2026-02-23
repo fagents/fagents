@@ -165,11 +165,21 @@ if [[ -z "$HUMAN_NAME" ]]; then
     exit 1
 fi
 
+# Ask for Claude OAuth token upfront (so install runs unattended after this)
+CLAUDE_TOKEN=""
+if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
+    echo ""
+    echo "All agents need a Claude Code OAuth token to run."
+    echo "Run 'claude setup-token' on a machine with a browser, then paste it here."
+    read -rp "Claude OAuth token (or Enter to skip): " CLAUDE_TOKEN
+fi
+
 echo ""
 echo "  Infra user:  $INFRA_USER (owns comms + git repos)"
 echo "  Agents:      ${AGENTS[*]}"
 echo "  Human:       $HUMAN_NAME"
 echo "  Comms:       127.0.0.1:$COMMS_PORT"
+[[ -n "$CLAUDE_TOKEN" ]] && echo "  Claude auth: provided" || echo "  Claude auth: skip (set up manually later)"
 
 # Warn about sudo agents
 for name in "${AGENTS[@]}"; do
@@ -434,7 +444,6 @@ done
 rm -f "$INSTALL_SCRIPT"
 
 # ── Step 6: Claude Code setup ──
-CLAUDE_TOKEN=""
 if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
     echo "=== Step 6: Claude Code setup ==="
 
@@ -445,7 +454,7 @@ if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
             echo "  $name: Claude Code already installed"
         else
             echo "  $name: Installing Claude Code..."
-            su - "$user" -c "curl -fsSL https://claude.ai/install.sh | bash" 2>&1 | tail -3 | sed 's/^/    /'
+            su - "$user" -c "curl -fsSL https://claude.ai/install.sh | bash" 2>&1 | tail -3 | log_verbose
             if su - "$user" -c "command -v claude" &>/dev/null; then
                 echo "  $name: Installed"
             else
@@ -454,12 +463,7 @@ if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
         fi
     done
 
-    echo ""
-    echo "  All agents need a Claude Code OAuth token to run."
-    echo "  Run 'claude setup-token' on a machine with a browser,"
-    echo "  then paste the token here."
-    echo ""
-    read -rp "  Claude OAuth token (or Enter to skip): " CLAUDE_TOKEN
+    # Configure OAuth token (collected during interactive setup)
     if [[ -n "$CLAUDE_TOKEN" ]]; then
         for name in "${AGENT_NAMES[@]}"; do
             user=$(agent_user "$name")
