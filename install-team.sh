@@ -621,11 +621,7 @@ echo "  $STEP. Start the team:"
 echo "     sudo $TEAM_DIR/start-team.sh"
 echo ""
 STEP=$((STEP + 1))
-echo "  $STEP. Stop the team:"
-echo "     sudo $TEAM_DIR/stop-team.sh"
-echo ""
-STEP=$((STEP + 1))
-echo "  $STEP. Access comms remotely (SSH tunnel):"
+echo "  $STEP. Open comms (SSH tunnel from your machine):"
 echo "     ssh -L $COMMS_PORT:127.0.0.1:$COMMS_PORT ${SUDO_USER:-\$USER}@$(hostname)"
 if [[ -n "$HUMAN_TOKEN" ]]; then
     echo "     Then open: http://127.0.0.1:$COMMS_PORT/?token=$HUMAN_TOKEN"
@@ -633,11 +629,14 @@ else
     echo "     Then open: http://127.0.0.1:$COMMS_PORT/?token=YOUR_TOKEN"
 fi
 echo ""
-STEP=$((STEP + 1))
-echo "  $STEP. View logs:"
+echo "Additionally you can:"
+echo "  A. View logs:"
 for name in "${AGENT_NAMES[@]}"; do
     user=$(agent_user "$name")
     ws="${AGENT_WORKSPACES[$name]}"
     echo "     sudo su - $user -c 'tail -f ~/workspace/$ws/.autonomy/daemon.log'"
 done
+echo ""
+echo "  B. Stop the team:"
+echo "     sudo $TEAM_DIR/stop-team.sh"
 echo ""
