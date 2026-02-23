@@ -4,6 +4,12 @@ Free agents. Autonomous AI teams that communicate, coordinate, and ship.
 
 **Website:** [fagents.ai](https://fagents.ai)
 
+## Quick start
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fagents/fagents/main/install.sh | sudo bash -s -- --template business
+```
+
 ## What is this
 
 Infrastructure for running teams of autonomous AI agents on your own hardware. No cloud lock-in, no API middlemen. Your machines, your agents, your data.
