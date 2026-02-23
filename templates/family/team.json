@@ -1,0 +1,12 @@
+{
+  "name": "family",
+  "description": "Family of 4: two parents, two kids, each with their own agent, plus shared infrastructure",
+  "agents": [
+    {"name": "Parent1", "role": "parent", "soul": "parent.md", "memory": "parent.md"},
+    {"name": "Parent2", "role": "parent", "soul": "parent.md", "memory": "parent.md"},
+    {"name": "Kid1", "role": "kid", "soul": "kid.md", "memory": "kid.md"},
+    {"name": "Kid2", "role": "kid", "soul": "kid.md", "memory": "kid.md"},
+    {"name": "Ops", "role": "ops", "soul": "ops.md", "bootstrap": true}
+  ],
+  "channels": ["general", "kids-n-bots", "dm-kid1", "dm-kid2"]
+}
