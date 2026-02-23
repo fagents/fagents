@@ -65,8 +65,12 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # ── Output helpers ──
+BOLD='\033[1m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; RED='\033[0;31m'; NC='\033[0m'
 log_verbose() { if [[ -n "$VERBOSE" ]]; then sed 's/^/  /'; else cat > /dev/null; fi; }
-log_step() { echo ""; echo "=== $1 ==="; }
+log_step() { echo ""; echo -e "${BOLD}=== $1 ===${NC}"; }
+log_ok() { echo -e "  ${GREEN}✓${NC} $1"; }
+log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
+log_err() { echo -e "  ${RED}✗${NC} $1"; }
 
 # ── Load template if specified ──
 TEMPLATE_DIR=""
@@ -108,7 +112,7 @@ prompt() {
 }
 
 if [[ ${#AGENTS[@]} -eq 0 ]]; then
-    echo "=== Freeturtle Team Install (interactive) ==="
+    log_step "Step 0: Collect information"
     echo ""
     echo "No agents specified and no template selected."
     echo "Available templates:"
@@ -185,7 +189,7 @@ echo "  Comms:       127.0.0.1:$COMMS_PORT"
 for name in "${AGENTS[@]}"; do
     if [[ -n "${AGENT_BOOTSTRAP[$name]:-}" ]]; then
         echo ""
-        echo "  WARNING: $name WILL HAVE SUDO. It can break your system. Mistakes will happen."
+        log_warn " $name WILL HAVE SUDO. It can break your system. Mistakes will happen."
     fi
 done
 
@@ -216,7 +220,7 @@ agent_user() {
 
 # ── Step 1: Create group and users ──
 echo ""
-echo "=== Step 1: Create users ==="
+log_step "Step 1: Create users"
 groupadd -f fagent
 
 # Create infra user
@@ -224,7 +228,7 @@ if id "$INFRA_USER" &>/dev/null; then
     echo "  $INFRA_USER (infra) already exists"
 else
     useradd -m -g fagent -s /bin/bash "$INFRA_USER"
-    echo "  Created $INFRA_USER (infra)"
+    log_ok "Created $INFRA_USER (infra)"
 fi
 INFRA_HOME=$(eval echo "~$INFRA_USER")
 
@@ -235,7 +239,7 @@ for name in "${AGENT_NAMES[@]}"; do
         echo "  $user already exists"
     else
         useradd -m -g fagent -s /bin/bash "$user"
-        echo "  Created $user"
+        log_ok "Created $user"
     fi
     # Grant sudo to bootstrap/ops agent
     if [[ -n "${AGENT_BOOTSTRAP[$name]:-}" ]]; then
@@ -249,7 +253,7 @@ done
 echo ""
 
 # ── Step 2: Set up infra (comms + git repos) ──
-echo "=== Step 2: Infrastructure (under $INFRA_USER) ==="
+log_step "Step 2: Infrastructure (under $INFRA_USER)"
 REPOS_DIR="$INFRA_HOME/repos"
 su - "$INFRA_USER" -c "mkdir -p ~/repos"
 
@@ -305,7 +309,7 @@ git config --system safe.directory '*'
 echo ""
 
 # ── Step 3: Register agents + human (CLI — before server starts) ──
-echo "=== Step 3: Register agents + human ==="
+log_step "Step 3: Register agents + human"
 declare -A AGENT_TOKENS
 
 # Create general channel (CLI, no server needed)
@@ -317,9 +321,9 @@ for name in "${AGENT_NAMES[@]}"; do
     token=$(echo "$output" | grep "^Token: " | cut -d' ' -f2)
     if [[ -n "$token" ]]; then
         AGENT_TOKENS["$name"]="$token"
-        echo "  Registered $name"
+        log_ok "Registered $name"
     else
-        echo "  WARNING: Failed to register $name"
+        log_warn " Failed to register $name"
         echo "    $output" | head -3
     fi
 done
@@ -331,12 +335,12 @@ if [[ -n "$token" ]]; then
     HUMAN_TOKEN="$token"
     echo "  Registered human: $HUMAN_NAME"
 else
-    echo "  WARNING: Failed to register human $HUMAN_NAME"
+    log_warn " Failed to register human $HUMAN_NAME"
 fi
 echo ""
 
 # ── Step 4: Start comms server (tokens already on disk) ──
-echo "=== Step 4: Start comms server ==="
+log_step "Step 4: Start comms server"
 if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
     echo "  Comms server already running on port $COMMS_PORT"
 else
@@ -349,7 +353,7 @@ else
             break
         fi
         if [[ $i -eq 5 ]]; then
-            echo "  WARNING: Comms server may not have started. Check $COMMS_DIR/comms.log"
+            log_warn " Comms server may not have started. Check $COMMS_DIR/comms.log"
         fi
     done
 fi
@@ -377,7 +381,7 @@ fi
 echo ""
 
 # ── Step 5: Install each agent ──
-echo "=== Step 5: Install agents ==="
+log_step "Step 5: Install agents"
 
 # Copy install-agent.sh to /tmp so new users can run it
 # (their ~/workspace/fagents-autonomy doesn't exist yet — install-agent.sh creates it)
@@ -445,7 +449,7 @@ rm -f "$INSTALL_SCRIPT"
 
 # ── Step 6: Claude Code setup ──
 if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
-    echo "=== Step 6: Claude Code setup ==="
+    log_step "Step 6: Claude Code setup"
 
     # Install Claude Code per agent (installs to ~/.local/bin/claude)
     for name in "${AGENT_NAMES[@]}"; do
@@ -458,7 +462,7 @@ if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
             if su - "$user" -c "command -v claude" &>/dev/null; then
                 echo "  $name: Installed"
             else
-                echo "  WARNING: Claude Code installation failed for $name"
+                log_warn " Claude Code installation failed for $name"
             fi
         fi
     done
@@ -484,12 +488,12 @@ if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
         echo "  Skipped — set up auth manually later."
     fi
 else
-    echo "=== Step 6: Claude Code setup (skipped) ==="
+    log_step "Step 6: Claude Code setup (skipped)"
 fi
 echo ""
 
 # ── Step 7: Create team management scripts ──
-echo "=== Step 7: Team scripts ==="
+log_step "Step 7: Team scripts"
 TEAM_DIR="$INFRA_HOME/team"
 su - "$INFRA_USER" -c "mkdir -p ~/team"
 
@@ -520,7 +524,7 @@ for name in "${AGENT_NAMES[@]}"; do
     ws="${AGENT_WORKSPACES[$name]}"
     cat >> "$TEAM_DIR/start-team.sh" << AGENTSTART
 echo "Starting $name..."
-su - "$user" -c "cd ~/workspace/$ws && ./start-agent.sh" || echo "  WARNING: failed to start $name"
+su - "$user" -c "cd ~/workspace/$ws && ./start-agent.sh" || log_warn " failed to start $name"
 AGENTSTART
 done
 
