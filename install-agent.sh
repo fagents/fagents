@@ -208,16 +208,16 @@ if [[ ! -e TEAM.md ]]; then
     echo "  Created TEAM.md symlink"
 fi
 
-# .freeturtle symlink
-if [[ ! -e .freeturtle ]]; then
-    ln -s "$CLAUDE_PROJECT_DIR" .freeturtle
-    echo "  Created .freeturtle symlink"
+# .introspection-logs symlink (Claude Code session data for awareness scripts)
+if [[ ! -e .introspection-logs ]]; then
+    ln -s "$CLAUDE_PROJECT_DIR" .introspection-logs
+    echo "  Created .introspection-logs symlink"
 fi
 
 # .gitignore
 if [[ ! -f .gitignore ]]; then
     cat > .gitignore << 'GIEOF'
-.freeturtle
+.introspection-logs
 .autonomy
 .mcp.json
 GIEOF
