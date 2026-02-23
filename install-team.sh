@@ -529,8 +529,8 @@ fi
 STOPCOMMS
 chmod +x "$TEAM_DIR/stop-comms.sh"
 
-# start-agents.sh
-cat > "$TEAM_DIR/start-agents.sh" << 'STARTAGENTS'
+# start-team.sh
+cat > "$TEAM_DIR/start-team.sh" << 'STARTAGENTS'
 #!/bin/bash
 # Start agent daemons
 set -euo pipefail
@@ -538,15 +538,15 @@ STARTAGENTS
 for name in "${AGENT_NAMES[@]}"; do
     user=$(agent_user "$name")
     ws="${AGENT_WORKSPACES[$name]}"
-    cat >> "$TEAM_DIR/start-agents.sh" << AGENTSTART
+    cat >> "$TEAM_DIR/start-team.sh" << AGENTSTART
 echo "Starting $name..."
 su - "$user" -c "cd ~/workspace/$ws && ./start-agent.sh" || echo "  WARNING: failed to start $name"
 AGENTSTART
 done
-chmod +x "$TEAM_DIR/start-agents.sh"
+chmod +x "$TEAM_DIR/start-team.sh"
 
-# stop-agents.sh
-cat > "$TEAM_DIR/stop-agents.sh" << 'STOPAGENTS'
+# stop-team.sh
+cat > "$TEAM_DIR/stop-team.sh" << 'STOPAGENTS'
 #!/bin/bash
 # Stop agent daemons
 set -euo pipefail
@@ -572,11 +572,11 @@ for name in "${AGENT_NAMES[@]}"; do
     user=$(agent_user "$name")
     user_home=$(eval echo "~$user")
     ws="${AGENT_WORKSPACES[$name]}"
-    cat >> "$TEAM_DIR/stop-agents.sh" << AGENTSTOP
+    cat >> "$TEAM_DIR/stop-team.sh" << AGENTSTOP
 stop_pid_file "$name" "$user_home/workspace/$ws/.autonomy/daemon.pid"
 AGENTSTOP
 done
-chmod +x "$TEAM_DIR/stop-agents.sh"
+chmod +x "$TEAM_DIR/stop-team.sh"
 
 # start-fagents.sh (shortcut: comms + agents)
 cat > "$TEAM_DIR/start-fagents.sh" << STARTALL
@@ -585,7 +585,7 @@ cat > "$TEAM_DIR/start-fagents.sh" << STARTALL
 set -euo pipefail
 SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 "\$SCRIPT_DIR/start-comms.sh"
-"\$SCRIPT_DIR/start-agents.sh"
+"\$SCRIPT_DIR/start-team.sh"
 STARTALL
 chmod +x "$TEAM_DIR/start-fagents.sh"
 
@@ -595,7 +595,7 @@ cat > "$TEAM_DIR/stop-fagents.sh" << STOPALL
 # Stop everything: agent daemons + comms server
 set -euo pipefail
 SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-"\$SCRIPT_DIR/stop-agents.sh"
+"\$SCRIPT_DIR/stop-team.sh"
 "\$SCRIPT_DIR/stop-comms.sh"
 STOPALL
 chmod +x "$TEAM_DIR/stop-fagents.sh"
@@ -666,5 +666,5 @@ echo "     sudo $TEAM_DIR/stop-fagents.sh"
 echo ""
 echo "  C. Start/stop individually:"
 echo "     sudo $TEAM_DIR/start-comms.sh    sudo $TEAM_DIR/stop-comms.sh"
-echo "     sudo $TEAM_DIR/start-agents.sh   sudo $TEAM_DIR/stop-agents.sh"
+echo "     sudo $TEAM_DIR/start-team.sh   sudo $TEAM_DIR/stop-team.sh"
 echo ""
