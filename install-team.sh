@@ -424,19 +424,21 @@ CLAUDE_TOKEN=""
 if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
     echo "=== Step 6: Claude Code setup ==="
 
-    # Install Claude Code if not present
-    if command -v claude &>/dev/null; then
-        echo "  Claude Code already installed: $(claude --version 2>/dev/null || echo 'unknown version')"
-    else
-        echo "  Claude Code not found. Installing..."
-        curl -fsSL https://claude.ai/install.sh | bash 2>&1 | tail -5 | sed 's/^/  /'
-        if command -v claude &>/dev/null; then
-            echo "  Claude Code installed: $(claude --version 2>/dev/null || echo 'unknown version')"
+    # Install Claude Code per agent (installs to ~/.local/bin/claude)
+    for name in "${AGENT_NAMES[@]}"; do
+        user=$(agent_user "$name")
+        if su - "$user" -c "command -v claude" &>/dev/null; then
+            echo "  $name: Claude Code already installed"
         else
-            echo "  WARNING: Claude Code installation failed. Agents won't work without it."
-            echo "  Install manually: curl -fsSL https://claude.ai/install.sh | bash"
+            echo "  $name: Installing Claude Code..."
+            su - "$user" -c "curl -fsSL https://claude.ai/install.sh | bash" 2>&1 | tail -3 | sed 's/^/    /'
+            if su - "$user" -c "command -v claude" &>/dev/null; then
+                echo "  $name: Installed"
+            else
+                echo "  WARNING: Claude Code installation failed for $name"
+            fi
         fi
-    fi
+    done
 
     echo ""
     echo "  All agents need a Claude Code OAuth token to run."
