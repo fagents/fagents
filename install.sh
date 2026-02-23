@@ -1,8 +1,11 @@
 #!/bin/bash
 # fagents installer — curlable bootstrap script
-# Usage: curl -fsSL https://fagents.ai/install.sh | bash
 #
-# Downloads fagents and runs install-agent.sh interactively.
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/fagents/fagents/main/install.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/fagents/fagents/main/install.sh | sudo bash -s -- --template business
+#
+# Downloads fagents and runs install-team.sh with any arguments passed through.
 
 set -euo pipefail
 
@@ -11,26 +14,26 @@ echo "  fagents — free agents"
 echo "  https://fagents.ai"
 echo ""
 
-# Check prerequisites
+# ── Preflight ──
+if [[ "$(id -u)" -ne 0 ]]; then
+    echo "ERROR: This script must be run as root (use sudo)." >&2
+    exit 1
+fi
+
 for cmd in git python3 curl jq; do
     if ! command -v "$cmd" &>/dev/null; then
-        echo "ERROR: $cmd is required but not installed." >&2
+        echo "ERROR: '$cmd' is required but not installed." >&2
         exit 1
     fi
 done
 
-INSTALL_DIR="${FAGENTS_DIR:-$HOME/workspace/fagents}"
+# ── Clone ──
+INSTALL_DIR="/tmp/fagents-install-$$"
+trap 'rm -rf "$INSTALL_DIR"' EXIT
 
-if [[ -d "$INSTALL_DIR" ]]; then
-    echo "fagents already exists at $INSTALL_DIR"
-    echo "Pulling latest..."
-    git -C "$INSTALL_DIR" pull --quiet 2>/dev/null || echo "  (pull failed, using existing)"
-else
-    echo "Cloning fagents..."
-    git clone https://github.com/fagents/fagents.git "$INSTALL_DIR"
-fi
+echo "Fetching fagents..."
+git clone --depth 1 --quiet https://github.com/fagents/fagents.git "$INSTALL_DIR"
 
+# ── Run installer (redirect stdin from terminal for interactive prompts) ──
 echo ""
-echo "Running install-agent.sh..."
-echo ""
-bash "$INSTALL_DIR/install-agent.sh"
+"$INSTALL_DIR/install-team.sh" "$@" < /dev/tty
