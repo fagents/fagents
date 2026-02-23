@@ -451,6 +451,13 @@ for name in "${AGENT_NAMES[@]}"; do
             chown "$user:fagent" "$agent_ws/memory/MEMORY.md"
             log_ok "Appended to MEMORY.md (from $memory_file)"
         fi
+        # Copy template prompt overrides (heartbeat variants)
+        if [[ -d "$TEMPLATE_DIR/prompts" ]]; then
+            mkdir -p "$agent_ws/prompts"
+            cp "$TEMPLATE_DIR/prompts/"* "$agent_ws/prompts/" 2>/dev/null || true
+            chown -R "$user:fagent" "$agent_ws/prompts"
+            log_ok "Copied prompt overrides"
+        fi
     fi
 
     echo ""
