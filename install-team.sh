@@ -498,16 +498,11 @@ log_step "Step 7: Team scripts"
 TEAM_DIR="$INFRA_HOME/team"
 su - "$INFRA_USER" -c "mkdir -p ~/team"
 
-# start-team.sh
-cat > "$TEAM_DIR/start-team.sh" << 'TEAMSTART'
+# start-comms.sh
+cat > "$TEAM_DIR/start-comms.sh" << STARTCOMMS
 #!/bin/bash
-# Start all agents in the team
+# Start the comms server
 set -euo pipefail
-TEAMSTART
-
-cat >> "$TEAM_DIR/start-team.sh" << COMMSSTART
-
-# Start comms server
 echo "Starting comms server..."
 if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
     echo "  Already running"
@@ -516,26 +511,44 @@ else
     sleep 2
     echo "  Started"
 fi
+STARTCOMMS
+chmod +x "$TEAM_DIR/start-comms.sh"
 
+# stop-comms.sh
+cat > "$TEAM_DIR/stop-comms.sh" << STOPCOMMS
+#!/bin/bash
+# Stop the comms server
+set -euo pipefail
+echo "Stopping comms server..."
+COMMS_PID=\$(pgrep -f "python3 server.py serve" -u $INFRA_USER 2>/dev/null || true)
+if [[ -n "\$COMMS_PID" ]]; then
+    kill \$COMMS_PID 2>/dev/null && echo "  Stopped" || echo "  Not running"
+else
+    echo "  Not running"
+fi
+STOPCOMMS
+chmod +x "$TEAM_DIR/stop-comms.sh"
+
+# start-agents.sh
+cat > "$TEAM_DIR/start-agents.sh" << 'STARTAGENTS'
+#!/bin/bash
 # Start agent daemons
-COMMSSTART
-
+set -euo pipefail
+STARTAGENTS
 for name in "${AGENT_NAMES[@]}"; do
     user=$(agent_user "$name")
     ws="${AGENT_WORKSPACES[$name]}"
-    cat >> "$TEAM_DIR/start-team.sh" << AGENTSTART
+    cat >> "$TEAM_DIR/start-agents.sh" << AGENTSTART
 echo "Starting $name..."
 su - "$user" -c "cd ~/workspace/$ws && ./start-agent.sh" || echo "  WARNING: failed to start $name"
 AGENTSTART
 done
+chmod +x "$TEAM_DIR/start-agents.sh"
 
-chmod +x "$TEAM_DIR/start-team.sh"
-log_ok "Created $TEAM_DIR/start-team.sh"
-
-# stop-team.sh
-cat > "$TEAM_DIR/stop-team.sh" << 'TEAMSTOP'
+# stop-agents.sh
+cat > "$TEAM_DIR/stop-agents.sh" << 'STOPAGENTS'
 #!/bin/bash
-# Stop all agents in the team (run as root)
+# Stop agent daemons
 set -euo pipefail
 
 stop_pid_file() {
@@ -554,30 +567,40 @@ stop_pid_file() {
         echo "  No PID file"
     fi
 }
-TEAMSTOP
-
+STOPAGENTS
 for name in "${AGENT_NAMES[@]}"; do
     user=$(agent_user "$name")
     user_home=$(eval echo "~$user")
     ws="${AGENT_WORKSPACES[$name]}"
-    cat >> "$TEAM_DIR/stop-team.sh" << AGENTSTOP
+    cat >> "$TEAM_DIR/stop-agents.sh" << AGENTSTOP
 stop_pid_file "$name" "$user_home/workspace/$ws/.autonomy/daemon.pid"
 AGENTSTOP
 done
+chmod +x "$TEAM_DIR/stop-agents.sh"
 
-cat >> "$TEAM_DIR/stop-team.sh" << COMMSSTOP
+# start-fagents.sh (shortcut: comms + agents)
+cat > "$TEAM_DIR/start-fagents.sh" << STARTALL
+#!/bin/bash
+# Start everything: comms server + agent daemons
+set -euo pipefail
+SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+"\$SCRIPT_DIR/start-comms.sh"
+"\$SCRIPT_DIR/start-agents.sh"
+STARTALL
+chmod +x "$TEAM_DIR/start-fagents.sh"
 
-echo "Stopping comms server..."
-COMMS_PID=\$(pgrep -f "python3 server.py serve" -u $INFRA_USER 2>/dev/null || true)
-if [[ -n "\$COMMS_PID" ]]; then
-    kill \$COMMS_PID 2>/dev/null && echo "  Stopped" || echo "  Not running"
-else
-    echo "  Not running"
-fi
-COMMSSTOP
+# stop-fagents.sh (shortcut: agents + comms)
+cat > "$TEAM_DIR/stop-fagents.sh" << STOPALL
+#!/bin/bash
+# Stop everything: agent daemons + comms server
+set -euo pipefail
+SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+"\$SCRIPT_DIR/stop-agents.sh"
+"\$SCRIPT_DIR/stop-comms.sh"
+STOPALL
+chmod +x "$TEAM_DIR/stop-fagents.sh"
 
-chmod +x "$TEAM_DIR/stop-team.sh"
-log_ok "Created $TEAM_DIR/stop-team.sh"
+log_ok "Created $TEAM_DIR/{start,stop}-{fagents,agents,comms}.sh"
 
 chown -R "$INFRA_USER:fagent" "$TEAM_DIR"
 echo ""
@@ -618,8 +641,8 @@ if [[ -z "$CLAUDE_TOKEN" ]]; then
     echo ""
     STEP=$((STEP + 1))
 fi
-echo "  $STEP. Start the team:"
-echo "     sudo $TEAM_DIR/start-team.sh"
+echo "  $STEP. Start everything:"
+echo "     sudo $TEAM_DIR/start-fagents.sh"
 echo ""
 STEP=$((STEP + 1))
 echo "  $STEP. Open comms (SSH tunnel from your machine):"
@@ -638,6 +661,10 @@ for name in "${AGENT_NAMES[@]}"; do
     echo "     sudo su - $user -c 'tail -f ~/workspace/$ws/.autonomy/daemon.log'"
 done
 echo ""
-echo "  B. Stop the team:"
-echo "     sudo $TEAM_DIR/stop-team.sh"
+echo "  B. Stop everything:"
+echo "     sudo $TEAM_DIR/stop-fagents.sh"
+echo ""
+echo "  C. Start/stop individually:"
+echo "     sudo $TEAM_DIR/start-comms.sh    sudo $TEAM_DIR/stop-comms.sh"
+echo "     sudo $TEAM_DIR/start-agents.sh   sudo $TEAM_DIR/stop-agents.sh"
 echo ""
