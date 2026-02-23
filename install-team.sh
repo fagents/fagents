@@ -236,12 +236,20 @@ echo "=== Step 2: Infrastructure (under $INFRA_USER) ==="
 REPOS_DIR="$INFRA_HOME/repos"
 su - "$INFRA_USER" -c "mkdir -p ~/repos"
 
-# Clone fagents-comms (shared copy, detached from GitHub)
-COMMS_DIR="$INFRA_HOME/repos/fagents-comms"
-if [[ -d "$COMMS_DIR" ]]; then
-    echo "  fagents-comms already at $COMMS_DIR"
+# Clone fagents-comms: bare repo in repos/, working copy in workspace/
+COMMS_BARE="$INFRA_HOME/repos/fagents-comms.git"
+COMMS_DIR="$INFRA_HOME/workspace/fagents-comms"
+if [[ -d "$COMMS_BARE" ]]; then
+    echo "  fagents-comms.git already at $COMMS_BARE"
 else
-    su - "$INFRA_USER" -c "git clone '$COMMS_REPO' ~/repos/fagents-comms && git -C ~/repos/fagents-comms remote remove origin" 2>&1 | sed 's/^/  /'
+    su - "$INFRA_USER" -c "git clone --bare '$COMMS_REPO' ~/repos/fagents-comms.git && git -C ~/repos/fagents-comms.git remote remove origin 2>/dev/null; true" 2>&1 | sed 's/^/  /'
+fi
+chmod -R g+rX "$COMMS_BARE"
+su - "$INFRA_USER" -c "mkdir -p ~/workspace"
+if [[ -d "$COMMS_DIR" ]]; then
+    echo "  fagents-comms working copy already at $COMMS_DIR"
+else
+    su - "$INFRA_USER" -c "git clone ~/repos/fagents-comms.git ~/workspace/fagents-comms" 2>&1 | sed 's/^/  /'
 fi
 
 # Clone fagents-autonomy as bare repo (shared, detached from GitHub)
@@ -278,7 +286,7 @@ if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/heal
     echo "  Comms server already running on port $COMMS_PORT"
 else
     echo "  Starting comms server on port $COMMS_PORT..."
-    su - "$INFRA_USER" -c "cd ~/repos/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT > comms.log 2>&1 &"
+    su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT > comms.log 2>&1 &"
     for i in 1 2 3 4 5; do
         sleep 1
         if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
@@ -292,7 +300,7 @@ else
 fi
 
 # Create general channel
-su - "$INFRA_USER" -c "cd ~/repos/fagents-comms && python3 server.py create-channel general 2>/dev/null" || true
+su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py create-channel general 2>/dev/null" || true
 echo ""
 
 # ── Step 4: Register agents + human with comms ──
@@ -301,7 +309,7 @@ declare -A AGENT_TOKENS
 
 # Register via CLI (writes tokens.json directly)
 for name in "${AGENT_NAMES[@]}"; do
-    output=$(su - "$INFRA_USER" -c "cd ~/repos/fagents-comms && python3 server.py add-agent '$name'" 2>&1) || true
+    output=$(su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py add-agent '$name'" 2>&1) || true
     token=$(echo "$output" | grep "^Token: " | cut -d' ' -f2)
     if [[ -n "$token" ]]; then
         AGENT_TOKENS["$name"]="$token"
@@ -313,7 +321,7 @@ for name in "${AGENT_NAMES[@]}"; do
 done
 
 HUMAN_TOKEN=""
-output=$(su - "$INFRA_USER" -c "cd ~/repos/fagents-comms && python3 server.py add-agent '$HUMAN_NAME'" 2>&1) || true
+output=$(su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py add-agent '$HUMAN_NAME'" 2>&1) || true
 token=$(echo "$output" | grep "^Token: " | cut -d' ' -f2)
 if [[ -n "$token" ]]; then
     HUMAN_TOKEN="$token"
@@ -327,7 +335,7 @@ echo "  Restarting comms server..."
 COMMS_PID=$(pgrep -f "python3 server.py serve" -u "$(id -u "$INFRA_USER")" 2>/dev/null || true)
 [[ -n "$COMMS_PID" ]] && kill $COMMS_PID 2>/dev/null
 sleep 1
-su - "$INFRA_USER" -c "cd ~/repos/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT > comms.log 2>&1 &"
+su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT > comms.log 2>&1 &"
 sleep 2
 
 # Subscribe via HTTP API (server now has the tokens)
@@ -472,7 +480,7 @@ echo "Starting comms server..."
 if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
     echo "  Already running"
 else
-    su - "$INFRA_USER" -c "cd ~/repos/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT > comms.log 2>&1 &"
+    su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT > comms.log 2>&1 &"
     sleep 2
     echo "  Started"
 fi
