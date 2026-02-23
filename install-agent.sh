@@ -135,6 +135,7 @@ if [[ ! -f "$WORKSPACE_DIR/memory/MEMORY.md" ]]; then
 - Created: $(date +%Y-%m-%d)
 
 ## After Compaction
+- Read SOUL.md (in memory/)
 - Read TEAM.md (symlinked in workspace root)
 - Check comms: \$AUTONOMY_DIR/comms/client.sh fetch general --since 60m
 
@@ -199,7 +200,7 @@ if [[ ! -f .claude/settings.json ]]; then
       {"hooks": [{"type": "command", "command": "\"$AUTONOMY_DIR\"/hooks/inject-context.sh"}]}
     ],
     "PreToolUse": [
-      {"hooks": [{"type": "command", "command": "\"$AUTONOMY_DIR\"/hooks/comms-check.sh"}]}
+      {"hooks": [{"type": "command", "command": "\"$AUTONOMY_DIR\"/hooks/inject-awareness.sh"}]}
     ],
     "PostToolUse": [
       {"hooks": [{"type": "command", "command": "\"$AUTONOMY_DIR\"/hooks/activity-push.sh", "async": true, "timeout": 10}]}
