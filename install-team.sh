@@ -14,6 +14,7 @@
 #   --comms-repo URL        fagents-comms git repo URL (default: GitHub)
 #   --mcp-port PORT         MCP local port (enables MCP for all agents)
 #   --skip-claude-auth             Skip Claude Code authentication setup
+#   --verbose                      Show full output (default: summary only)
 #
 # Creates a 'fagents' infra user that owns the comms server and git repos.
 # Agents connect via localhost. Easy to migrate to remote server later.
@@ -31,6 +32,7 @@ COMMS_PORT=9754
 COMMS_REPO="https://github.com/fagents/fagents-comms.git"
 MCP_PORT=""
 SKIP_CLAUDE_AUTH=""
+VERBOSE=""
 TEMPLATE=""
 AGENTS=()
 HUMAN_NAME=""
@@ -47,6 +49,7 @@ while [[ $# -gt 0 ]]; do
         --comms-repo)   COMMS_REPO="$2"; shift 2 ;;
         --mcp-port)     MCP_PORT="$2"; shift 2 ;;
         --skip-claude-auth)    SKIP_CLAUDE_AUTH=1; shift ;;
+        --verbose|-v)   VERBOSE=1; shift ;;
         --help|-h)
             sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
             exit 0
@@ -60,6 +63,10 @@ if [[ $EUID -ne 0 ]]; then
     echo "ERROR: Must run as root (sudo)." >&2
     exit 1
 fi
+
+# ── Output helpers ──
+log_verbose() { if [[ -n "$VERBOSE" ]]; then sed 's/^/  /'; else cat > /dev/null; fi; }
+log_step() { echo ""; echo "=== $1 ==="; }
 
 # ── Load template if specified ──
 TEMPLATE_DIR=""
@@ -242,14 +249,14 @@ COMMS_DIR="$INFRA_HOME/workspace/fagents-comms"
 if [[ -d "$COMMS_BARE" ]]; then
     echo "  fagents-comms.git already at $COMMS_BARE"
 else
-    su - "$INFRA_USER" -c "git clone --bare '$COMMS_REPO' ~/repos/fagents-comms.git && git -C ~/repos/fagents-comms.git remote remove origin 2>/dev/null; true" 2>&1 | sed 's/^/  /'
+    su - "$INFRA_USER" -c "git clone --bare '$COMMS_REPO' ~/repos/fagents-comms.git && git -C ~/repos/fagents-comms.git remote remove origin 2>/dev/null; true" 2>&1 | log_verbose
 fi
 chmod -R g+rX "$COMMS_BARE"
 su - "$INFRA_USER" -c "mkdir -p ~/workspace"
 if [[ -d "$COMMS_DIR" ]]; then
     echo "  fagents-comms working copy already at $COMMS_DIR"
 else
-    su - "$INFRA_USER" -c "git clone ~/repos/fagents-comms.git ~/workspace/fagents-comms" 2>&1 | sed 's/^/  /'
+    su - "$INFRA_USER" -c "git clone ~/repos/fagents-comms.git ~/workspace/fagents-comms" 2>&1 | log_verbose
 fi
 
 # Clone fagents-autonomy as bare repo (shared, detached from GitHub)
@@ -257,7 +264,7 @@ SHARED_AUTONOMY="$INFRA_HOME/repos/fagents-autonomy.git"
 if [[ -d "$SHARED_AUTONOMY" ]]; then
     echo "  fagents-autonomy already at $SHARED_AUTONOMY"
 else
-    su - "$INFRA_USER" -c "git clone --bare '$AUTONOMY_REPO' ~/repos/fagents-autonomy.git && git -C ~/repos/fagents-autonomy.git remote remove origin 2>/dev/null; true" 2>&1 | sed 's/^/  /'
+    su - "$INFRA_USER" -c "git clone --bare '$AUTONOMY_REPO' ~/repos/fagents-autonomy.git && git -C ~/repos/fagents-autonomy.git remote remove origin 2>/dev/null; true" 2>&1 | log_verbose
 fi
 # Make readable so agents can clone from it
 chmod -R g+rX "$SHARED_AUTONOMY"
@@ -271,7 +278,7 @@ for name in "${AGENT_NAMES[@]}"; do
     if [[ -d "$repo_path" ]]; then
         echo "  Repo $ws.git already exists"
     else
-        su - "$INFRA_USER" -c "git init --bare -b main ~/repos/$ws.git" 2>&1 | sed 's/^/  /'
+        su - "$INFRA_USER" -c "git init --bare -b main ~/repos/$ws.git" 2>&1 | log_verbose
         echo "  Created bare repo: $ws.git"
     fi
 done
@@ -396,7 +403,7 @@ for name in "${AGENT_NAMES[@]}"; do
         export MCP_LOCAL_PORT='$MCP_LOCAL_PORT_VAL'
         export MCP_REMOTE_PORT='$MCP_REMOTE_PORT_VAL'
         bash '$INSTALL_SCRIPT'
-    " 2>&1 | sed 's/^/  /'
+    " 2>&1 | log_verbose
 
     # Set up git remote pointing to local bare repo
     agent_home=$(eval echo "~$user")
