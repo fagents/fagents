@@ -142,6 +142,10 @@ if [[ ! -f "$WORKSPACE_DIR/memory/MEMORY.md" ]]; then
 - Workspace: $WORKSPACE_DIR
 - Autonomy: $AUTONOMY_DIR
 - Comms client: \$AUTONOMY_DIR/comms/client.sh
+
+## References
+<!-- Appendable index: description | keywords | when to read → file -->
+<!-- Example: Project roadmap | goals, milestones | before planning work → memory/roadmap.md -->
 MEMEOF
     echo "  Created starter MEMORY.md"
 else
