@@ -22,7 +22,7 @@
 #   sudo ./install-team.sh --template business
 #   sudo ./install-team.sh --comms-repo URL COO Dev Ops
 #
-# Prerequisites: git, python3, curl, jq, npm (or node)
+# Prerequisites: git, python3, curl, jq
 
 set -euo pipefail
 
@@ -429,17 +429,12 @@ if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
         echo "  Claude Code already installed: $(claude --version 2>/dev/null || echo 'unknown version')"
     else
         echo "  Claude Code not found. Installing..."
-        if command -v npm &>/dev/null; then
-            npm install -g @anthropic-ai/claude-code 2>&1 | tail -3 | sed 's/^/  /'
-        else
-            echo "  npm not found — trying curl installer..."
-            curl -fsSL https://claude.ai/install.sh | bash 2>&1 | tail -3 | sed 's/^/  /'
-        fi
+        curl -fsSL https://claude.ai/install.sh | bash 2>&1 | tail -5 | sed 's/^/  /'
         if command -v claude &>/dev/null; then
             echo "  Claude Code installed: $(claude --version 2>/dev/null || echo 'unknown version')"
         else
             echo "  WARNING: Claude Code installation failed. Agents won't work without it."
-            echo "  Install manually: npm install -g @anthropic-ai/claude-code"
+            echo "  Install manually: curl -fsSL https://claude.ai/install.sh | bash"
         fi
     fi
 
