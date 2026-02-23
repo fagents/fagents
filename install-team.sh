@@ -22,7 +22,7 @@
 #   sudo ./install-team.sh --template business
 #   sudo ./install-team.sh --comms-repo URL COO Dev Ops
 #
-# Prerequisites: git, python3, curl, jq
+# Prerequisites: git, python3, curl, jq, npm (or node)
 
 set -euo pipefail
 
@@ -419,10 +419,30 @@ done
 
 rm -f "$INSTALL_SCRIPT"
 
-# ── Step 6: Claude Code authentication ──
+# ── Step 6: Claude Code setup ──
 CLAUDE_TOKEN=""
 if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
-    echo "=== Step 6: Claude Code authentication ==="
+    echo "=== Step 6: Claude Code setup ==="
+
+    # Install Claude Code if not present
+    if command -v claude &>/dev/null; then
+        echo "  Claude Code already installed: $(claude --version 2>/dev/null || echo 'unknown version')"
+    else
+        echo "  Claude Code not found. Installing..."
+        if command -v npm &>/dev/null; then
+            npm install -g @anthropic-ai/claude-code 2>&1 | tail -3 | sed 's/^/  /'
+        else
+            echo "  npm not found — trying curl installer..."
+            curl -fsSL https://claude.ai/install.sh | bash 2>&1 | tail -3 | sed 's/^/  /'
+        fi
+        if command -v claude &>/dev/null; then
+            echo "  Claude Code installed: $(claude --version 2>/dev/null || echo 'unknown version')"
+        else
+            echo "  WARNING: Claude Code installation failed. Agents won't work without it."
+            echo "  Install manually: npm install -g @anthropic-ai/claude-code"
+        fi
+    fi
+
     echo ""
     echo "  All agents need a Claude Code OAuth token to run."
     echo "  Run 'claude setup-token' on a machine with a browser,"
@@ -449,7 +469,7 @@ if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
         echo "  Skipped — set up auth manually later."
     fi
 else
-    echo "=== Step 6: Claude Code authentication (skipped) ==="
+    echo "=== Step 6: Claude Code setup (skipped) ==="
 fi
 echo ""
 
