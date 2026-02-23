@@ -280,34 +280,14 @@ done
 chmod -R g+rX "$REPOS_DIR"
 echo ""
 
-# ── Step 3: Start comms server ──
-echo "=== Step 3: Start comms server ==="
-if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
-    echo "  Comms server already running on port $COMMS_PORT"
-else
-    echo "  Starting comms server on port $COMMS_PORT..."
-    su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT > comms.log 2>&1 &"
-    for i in 1 2 3 4 5; do
-        sleep 1
-        if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
-            echo "  Comms server running"
-            break
-        fi
-        if [[ $i -eq 5 ]]; then
-            echo "  WARNING: Comms server may not have started. Check $COMMS_DIR/comms.log"
-        fi
-    done
-fi
-
-# Create general channel
-su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py create-channel general 2>/dev/null" || true
-echo ""
-
-# ── Step 4: Register agents + human with comms ──
-echo "=== Step 4: Register agents + human ==="
+# ── Step 3: Register agents + human (CLI — before server starts) ──
+echo "=== Step 3: Register agents + human ==="
 declare -A AGENT_TOKENS
 
-# Register via CLI (writes tokens.json directly)
+# Create general channel (CLI, no server needed)
+su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py create-channel general 2>/dev/null" || true
+
+# Register via CLI (writes tokens.json directly — server not running yet)
 for name in "${AGENT_NAMES[@]}"; do
     output=$(su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py add-agent '$name'" 2>&1) || true
     token=$(echo "$output" | grep "^Token: " | cut -d' ' -f2)
@@ -329,16 +309,28 @@ if [[ -n "$token" ]]; then
 else
     echo "  WARNING: Failed to register human $HUMAN_NAME"
 fi
+echo ""
 
-# Restart server so it picks up new tokens (CLI bypasses in-memory cache)
-echo "  Restarting comms server..."
-COMMS_PID=$(pgrep -f "python3 server.py serve" -u "$(id -u "$INFRA_USER")" 2>/dev/null || true)
-[[ -n "$COMMS_PID" ]] && kill $COMMS_PID 2>/dev/null
-sleep 1
-su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT > comms.log 2>&1 &"
-sleep 2
+# ── Step 4: Start comms server (tokens already on disk) ──
+echo "=== Step 4: Start comms server ==="
+if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
+    echo "  Comms server already running on port $COMMS_PORT"
+else
+    echo "  Starting comms server on port $COMMS_PORT..."
+    su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT > comms.log 2>&1 &"
+    for i in 1 2 3 4 5; do
+        sleep 1
+        if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
+            echo "  Comms server running"
+            break
+        fi
+        if [[ $i -eq 5 ]]; then
+            echo "  WARNING: Comms server may not have started. Check $COMMS_DIR/comms.log"
+        fi
+    done
+fi
 
-# Subscribe via HTTP API (server now has the tokens)
+# Subscribe via HTTP API (server has all tokens from disk)
 for name in "${AGENT_NAMES[@]}"; do
     token="${AGENT_TOKENS[$name]:-}"
     [[ -z "$token" ]] && continue
