@@ -435,9 +435,21 @@ for name in "${AGENT_NAMES[@]}"; do
     # Copy template files (TEAM.md + soul) into agent workspace
     if [[ -n "$TEMPLATE_DIR" ]]; then
         if [[ -f "$TEMPLATE_DIR/TEAM.md" ]]; then
-            cp "$TEMPLATE_DIR/TEAM.md" "$agent_ws/TEAM.md"
-            chown "$user:fagent" "$agent_ws/TEAM.md"
-            log_ok "Copied TEAM.md"
+            # Inject template roles into TEAM_ROLES marker in autonomy's TEAM.md
+            local team_target
+            team_target=$(readlink -f "$agent_ws/TEAM.md" 2>/dev/null || echo "$agent_ws/TEAM.md")
+            if [[ -f "$team_target" ]] && grep -q '<!-- TEAM_ROLES -->' "$team_target"; then
+                local template_content
+                template_content=$(cat "$TEMPLATE_DIR/TEAM.md")
+                awk -v content="$template_content" '{gsub(/<!-- TEAM_ROLES -->/, content)}1' "$team_target" > "$team_target.tmp"
+                mv "$team_target.tmp" "$team_target"
+                chown "$user:fagent" "$team_target"
+                log_ok "Injected team roles into TEAM.md"
+            else
+                cp "$TEMPLATE_DIR/TEAM.md" "$agent_ws/TEAM.md"
+                chown "$user:fagent" "$agent_ws/TEAM.md"
+                log_ok "Copied TEAM.md (no marker found)"
+            fi
         fi
         soul_file="${AGENT_SOULS[$name]:-}"
         if [[ -n "$soul_file" && -f "$TEMPLATE_DIR/souls/$soul_file" ]]; then

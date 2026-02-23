@@ -1,5 +1,3 @@
-# Team Norms
-
 ## Roles
 
 - **COO** — operations, sales, production, marketing. The business brain.

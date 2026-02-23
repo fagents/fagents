@@ -1,5 +1,3 @@
-# Family Team
-
 ## Who's Who
 
 - **Parent agents** — one per parent. Household coordination, schedules, meals, shopping, appointments. They sync with each other so nothing falls through the cracks.
