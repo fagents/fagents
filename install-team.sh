@@ -112,7 +112,7 @@ prompt() {
 }
 
 if [[ ${#AGENTS[@]} -eq 0 ]]; then
-    log_step "Step 0: Collect information"
+    log_step "Step 0: Introductions"
     echo ""
     echo "No agents specified and no template selected."
     echo "Available templates:"
@@ -225,7 +225,7 @@ groupadd -f fagent
 
 # Create infra user
 if id "$INFRA_USER" &>/dev/null; then
-    echo "  $INFRA_USER (infra) already exists"
+    log_ok "$INFRA_USER (infra) already exists"
 else
     useradd -m -g fagent -s /bin/bash "$INFRA_USER"
     log_ok "Created $INFRA_USER (infra)"
@@ -236,7 +236,7 @@ INFRA_HOME=$(eval echo "~$INFRA_USER")
 for name in "${AGENT_NAMES[@]}"; do
     user=$(agent_user "$name")
     if id "$user" &>/dev/null; then
-        echo "  $user already exists"
+        log_ok "$user already exists"
     else
         useradd -m -g fagent -s /bin/bash "$user"
         log_ok "Created $user"
@@ -246,7 +246,7 @@ for name in "${AGENT_NAMES[@]}"; do
         if [[ ! -f "/etc/sudoers.d/$user" ]]; then
             echo "$user ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/$user"
             chmod 440 "/etc/sudoers.d/$user"
-            echo "  Granted sudo to $user (bootstrap/ops)"
+            log_ok "Granted sudo to $user (bootstrap/ops)"
         fi
     fi
 done
@@ -261,14 +261,14 @@ su - "$INFRA_USER" -c "mkdir -p ~/repos"
 COMMS_BARE="$INFRA_HOME/repos/fagents-comms.git"
 COMMS_DIR="$INFRA_HOME/workspace/fagents-comms"
 if [[ -d "$COMMS_BARE" ]]; then
-    echo "  fagents-comms.git already at $COMMS_BARE"
+    log_ok "fagents-comms.git already at $COMMS_BARE"
 else
     su - "$INFRA_USER" -c "git clone --bare '$COMMS_REPO' ~/repos/fagents-comms.git && git -C ~/repos/fagents-comms.git remote remove origin 2>/dev/null; true" 2>&1 | log_verbose
 fi
 chmod -R g+rX "$COMMS_BARE"
 su - "$INFRA_USER" -c "mkdir -p ~/workspace"
 if [[ -d "$COMMS_DIR" ]]; then
-    echo "  fagents-comms working copy already at $COMMS_DIR"
+    log_ok "fagents-comms working copy already at $COMMS_DIR"
 else
     su - "$INFRA_USER" -c "git clone ~/repos/fagents-comms.git ~/workspace/fagents-comms" 2>&1 | log_verbose
 fi
@@ -276,7 +276,7 @@ fi
 # Clone fagents-autonomy as bare repo (shared, detached from GitHub)
 SHARED_AUTONOMY="$INFRA_HOME/repos/fagents-autonomy.git"
 if [[ -d "$SHARED_AUTONOMY" ]]; then
-    echo "  fagents-autonomy already at $SHARED_AUTONOMY"
+    log_ok "fagents-autonomy already at $SHARED_AUTONOMY"
 else
     su - "$INFRA_USER" -c "git clone --bare '$AUTONOMY_REPO' ~/repos/fagents-autonomy.git && git -C ~/repos/fagents-autonomy.git remote remove origin 2>/dev/null; true" 2>&1 | log_verbose
 fi
@@ -290,10 +290,10 @@ for name in "${AGENT_NAMES[@]}"; do
     ws="${AGENT_WORKSPACES[$name]}"
     repo_path="$REPOS_DIR/$ws.git"
     if [[ -d "$repo_path" ]]; then
-        echo "  Repo $ws.git already exists"
+        log_ok "Repo $ws.git already exists"
     else
         su - "$INFRA_USER" -c "git init --bare -b main ~/repos/$ws.git" 2>&1 | log_verbose
-        echo "  Created bare repo: $ws.git"
+        log_ok "Created bare repo: $ws.git"
     fi
 done
 # Make all repos group-writable with setgid so agents can push/pull
@@ -333,7 +333,7 @@ output=$(su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.p
 token=$(echo "$output" | grep "^Token: " | cut -d' ' -f2)
 if [[ -n "$token" ]]; then
     HUMAN_TOKEN="$token"
-    echo "  Registered human: $HUMAN_NAME"
+    log_ok "Registered human: $HUMAN_NAME"
 else
     log_warn " Failed to register human $HUMAN_NAME"
 fi
@@ -342,14 +342,14 @@ echo ""
 # ── Step 4: Start comms server (tokens already on disk) ──
 log_step "Step 4: Start comms server"
 if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
-    echo "  Comms server already running on port $COMMS_PORT"
+    log_ok "Comms server already running on port $COMMS_PORT"
 else
     echo "  Starting comms server on port $COMMS_PORT..."
     su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT > comms.log 2>&1 &"
     for i in 1 2 3 4 5; do
         sleep 1
         if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
-            echo "  Comms server running"
+            log_ok "Comms server running"
             break
         fi
         if [[ $i -eq 5 ]]; then
@@ -394,7 +394,8 @@ for name in "${AGENT_NAMES[@]}"; do
     ws="${AGENT_WORKSPACES[$name]}"
     token="${AGENT_TOKENS[$name]:-}"
 
-    echo "--- $name ($user) ---"
+    echo ""
+    echo "  $name ($user):"
 
     MCP_ENABLED="n"
     MCP_LOCAL_PORT_VAL=""
@@ -424,7 +425,7 @@ for name in "${AGENT_NAMES[@]}"; do
     agent_ws="$agent_home/workspace/$ws"
     if [[ -d "$agent_ws/.git" ]]; then
         su - "$user" -c "cd ~/workspace/$ws && git remote remove origin 2>/dev/null; git remote add origin file://$REPOS_DIR/$ws.git && git push -u origin main 2>/dev/null" || true
-        echo "  Git remote → $REPOS_DIR/$ws.git"
+        log_ok "Git remote → $REPOS_DIR/$ws.git"
     fi
 
     # Copy template files (TEAM.md + soul) into agent workspace
@@ -432,13 +433,13 @@ for name in "${AGENT_NAMES[@]}"; do
         if [[ -f "$TEMPLATE_DIR/TEAM.md" ]]; then
             cp "$TEMPLATE_DIR/TEAM.md" "$agent_ws/TEAM.md"
             chown "$user:fagent" "$agent_ws/TEAM.md"
-            echo "  Copied TEAM.md"
+            log_ok "Copied TEAM.md"
         fi
         soul_file="${AGENT_SOULS[$name]:-}"
         if [[ -n "$soul_file" && -f "$TEMPLATE_DIR/souls/$soul_file" ]]; then
             cp "$TEMPLATE_DIR/souls/$soul_file" "$agent_ws/memory/SOUL.md"
             chown "$user:fagent" "$agent_ws/memory/SOUL.md"
-            echo "  Copied SOUL.md (from $soul_file)"
+            log_ok "Copied SOUL.md (from $soul_file)"
         fi
     fi
 
@@ -455,12 +456,12 @@ if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
     for name in "${AGENT_NAMES[@]}"; do
         user=$(agent_user "$name")
         if su - "$user" -c "command -v claude" &>/dev/null; then
-            echo "  $name: Claude Code already installed"
+            log_ok "$name: Claude Code already installed"
         else
             echo "  $name: Installing Claude Code..."
             su - "$user" -c "curl -fsSL https://claude.ai/install.sh | bash" 2>&1 | tail -3 | log_verbose
             if su - "$user" -c "command -v claude" &>/dev/null; then
-                echo "  $name: Installed"
+                log_ok "$name: Claude Code installed"
             else
                 log_warn " Claude Code installation failed for $name"
             fi
@@ -481,9 +482,9 @@ if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
             # Create ~/.claude.json for onboarding bypass
             su - "$user" -c "mkdir -p ~/.claude && echo '{\"hasCompletedOnboarding\": true}' > ~/.claude.json"
 
-            echo "  Configured $name"
+            log_ok "Configured $name"
         done
-        echo "  Done."
+        log_ok "OAuth configured for all agents"
     else
         echo "  Skipped — set up auth manually later."
     fi
@@ -529,7 +530,7 @@ AGENTSTART
 done
 
 chmod +x "$TEAM_DIR/start-team.sh"
-echo "  Created $TEAM_DIR/start-team.sh"
+log_ok "Created $TEAM_DIR/start-team.sh"
 
 # stop-team.sh
 cat > "$TEAM_DIR/stop-team.sh" << 'TEAMSTOP'
@@ -576,7 +577,7 @@ fi
 COMMSSTOP
 
 chmod +x "$TEAM_DIR/stop-team.sh"
-echo "  Created $TEAM_DIR/stop-team.sh"
+log_ok "Created $TEAM_DIR/stop-team.sh"
 
 chown -R "$INFRA_USER:fagent" "$TEAM_DIR"
 echo ""
