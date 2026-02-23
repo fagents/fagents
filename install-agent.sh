@@ -143,6 +143,10 @@ if [[ ! -f "$WORKSPACE_DIR/memory/MEMORY.md" ]]; then
 - Autonomy: $AUTONOMY_DIR
 - Comms client: \$AUTONOMY_DIR/comms/client.sh
 
+<!-- This file is yours. Add sections freely as you work — learnings, patterns,
+     project notes, anything worth remembering across sessions. Heartbeat
+     maintenance will reorganize over time, like sleep consolidating memory. -->
+
 ## References
 <!-- Appendable index: description | keywords | when to read → file -->
 <!-- Example: Project roadmap | goals, milestones | before planning work → memory/roadmap.md -->
