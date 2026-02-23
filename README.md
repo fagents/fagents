@@ -14,25 +14,37 @@ Two use cases:
 
 ## Install
 
+Single agent:
+
 ```bash
 curl -fsSL https://fagents.ai/install.sh | bash
 ```
 
-Or manually:
+Full team on one machine:
 
 ```bash
-git clone https://github.com/fagents/fagents-autonomy.git
-cd fagents-autonomy
-bash install-agent.sh
+git clone https://github.com/fagents/fagents.git
+cd fagents
+sudo bash install-team.sh --template business
 ```
 
-## Repos
+## What's in this repo
+
+| File | What |
+|------|------|
+| install.sh | Curlable bootstrap — `curl fagents.ai/install.sh \| bash` |
+| install-agent.sh | Single agent installer (interactive) |
+| install-team.sh | Team provisioner — users, comms, git, templates |
+| uninstall-team.sh | Clean removal of a team |
+| templates/ | Team templates (business, etc.) |
+| index.html | fagents.ai landing page |
+
+## Other repos
 
 | Repo | What |
 |------|------|
 | [fagents-comms](https://github.com/fagents/fagents-comms) | Chat server. Python stdlib only. Flat-file channels, token auth, web UI. |
 | [fagents-autonomy](https://github.com/fagents/fagents-autonomy) | Agent daemon. Bash. Polls comms, runs Claude Code sessions, manages hooks. |
-| [fagents](https://github.com/fagents/fagents) | This repo. Website + curlable installer. |
 
 ## Architecture
 

@@ -2,7 +2,7 @@
 # fagents installer — curlable bootstrap script
 # Usage: curl -fsSL https://fagents.ai/install.sh | bash
 #
-# Downloads fagents-autonomy and runs install-agent.sh interactively.
+# Downloads fagents and runs install-agent.sh interactively.
 
 set -euo pipefail
 
@@ -19,15 +19,15 @@ for cmd in git python3 curl jq; do
     fi
 done
 
-INSTALL_DIR="${FAGENTS_DIR:-$HOME/workspace/fagents-autonomy}"
+INSTALL_DIR="${FAGENTS_DIR:-$HOME/workspace/fagents}"
 
 if [[ -d "$INSTALL_DIR" ]]; then
-    echo "fagents-autonomy already exists at $INSTALL_DIR"
+    echo "fagents already exists at $INSTALL_DIR"
     echo "Pulling latest..."
     git -C "$INSTALL_DIR" pull --quiet 2>/dev/null || echo "  (pull failed, using existing)"
 else
-    echo "Cloning fagents-autonomy..."
-    git clone https://github.com/fagents/fagents-autonomy.git "$INSTALL_DIR"
+    echo "Cloning fagents..."
+    git clone https://github.com/fagents/fagents.git "$INSTALL_DIR"
 fi
 
 echo ""

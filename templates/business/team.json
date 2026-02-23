@@ -1,0 +1,9 @@
+{
+  "name": "business",
+  "description": "Small business team: operations, development, infrastructure",
+  "agents": [
+    {"name": "COO", "role": "coo", "soul": "coo.md"},
+    {"name": "Dev", "role": "dev", "soul": "dev.md"},
+    {"name": "Ops", "role": "ops", "soul": "ops.md", "bootstrap": true}
+  ]
+}
