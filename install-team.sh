@@ -606,7 +606,8 @@ if [[ -n "$HUMAN_TOKEN" ]]; then
     echo "  Web UI: http://127.0.0.1:$COMMS_PORT/?token=$HUMAN_TOKEN"
 fi
 echo ""
-echo "Next steps:"
+echo -e "${BOLD}----------------------------------------${NC}"
+echo -e "${BOLD}Next steps:${NC}"
 STEP=1
 if [[ -z "$CLAUDE_TOKEN" ]]; then
     echo "  $STEP. Run 'claude login' for each agent user:"
@@ -629,7 +630,7 @@ else
     echo "     Then open: http://127.0.0.1:$COMMS_PORT/?token=YOUR_TOKEN"
 fi
 echo ""
-echo "Additionally you can:"
+echo -e "${BOLD}Additionally you can:${NC}"
 echo "  A. View logs:"
 for name in "${AGENT_NAMES[@]}"; do
     user=$(agent_user "$name")
