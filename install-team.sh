@@ -524,7 +524,7 @@ for name in "${AGENT_NAMES[@]}"; do
     ws="${AGENT_WORKSPACES[$name]}"
     cat >> "$TEAM_DIR/start-team.sh" << AGENTSTART
 echo "Starting $name..."
-su - "$user" -c "cd ~/workspace/$ws && ./start-agent.sh" || log_warn " failed to start $name"
+su - "$user" -c "cd ~/workspace/$ws && ./start-agent.sh" || echo "  WARNING: failed to start $name"
 AGENTSTART
 done
 
