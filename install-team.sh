@@ -424,7 +424,7 @@ for name in "${AGENT_NAMES[@]}"; do
     agent_home=$(eval echo "~$user")
     agent_ws="$agent_home/workspace/$ws"
     if [[ -d "$agent_ws/.git" ]]; then
-        su - "$user" -c "cd ~/workspace/$ws && git remote remove origin 2>/dev/null; git remote add origin file://$REPOS_DIR/$ws.git && git push -u origin main 2>/dev/null" || true
+        su - "$user" -c "cd ~/workspace/$ws && git remote remove origin 2>/dev/null; git remote add origin file://$REPOS_DIR/$ws.git && git push -u origin main 2>/dev/null" 2>&1 | log_verbose || true
         log_ok "Git remote → $REPOS_DIR/$ws.git"
     fi
 
