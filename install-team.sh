@@ -75,6 +75,7 @@ log_err() { echo -e "  ${RED}✗${NC} $1"; }
 # ── Load template if specified ──
 TEMPLATE_DIR=""
 declare -A AGENT_SOULS
+declare -A AGENT_MEMORIES
 declare -A AGENT_BOOTSTRAP
 
 load_template() {
@@ -87,9 +88,11 @@ load_template() {
         name=$(echo "$line" | jq -r '.name')
         [[ -z "$name" || "$name" == "null" ]] && continue
         soul=$(echo "$line" | jq -r '.soul // empty')
+        memory=$(echo "$line" | jq -r '.memory // empty')
         is_bootstrap=$(echo "$line" | jq -r '.bootstrap // false')
         AGENTS+=("$name")
         [[ -n "$soul" ]] && AGENT_SOULS["$name"]="$soul"
+        [[ -n "$memory" ]] && AGENT_MEMORIES["$name"]="$memory"
         [[ "$is_bootstrap" == "true" ]] && AGENT_BOOTSTRAP["$name"]=1
     done < <(jq -c '.agents[]' "$tdir/team.json")
 }
@@ -148,6 +151,7 @@ if [[ -n "$TEMPLATE_DIR" && -z "${NONINTERACTIVE:-}" ]]; then
         new_name="${new_name:-$name}"
         if [[ "$new_name" != "$name" ]]; then
             [[ -n "${AGENT_SOULS[$name]:-}" ]] && AGENT_SOULS["$new_name"]="${AGENT_SOULS[$name]}" && unset "AGENT_SOULS[$name]"
+            [[ -n "${AGENT_MEMORIES[$name]:-}" ]] && AGENT_MEMORIES["$new_name"]="${AGENT_MEMORIES[$name]}" && unset "AGENT_MEMORIES[$name]"
             [[ -n "${AGENT_BOOTSTRAP[$name]:-}" ]] && AGENT_BOOTSTRAP["$new_name"]=1 && unset "AGENT_BOOTSTRAP[$name]"
         fi
         RENAMED_AGENTS+=("$new_name")
@@ -440,6 +444,12 @@ for name in "${AGENT_NAMES[@]}"; do
             cp "$TEMPLATE_DIR/souls/$soul_file" "$agent_ws/memory/SOUL.md"
             chown "$user:fagent" "$agent_ws/memory/SOUL.md"
             log_ok "Copied SOUL.md (from $soul_file)"
+        fi
+        memory_file="${AGENT_MEMORIES[$name]:-}"
+        if [[ -n "$memory_file" && -f "$TEMPLATE_DIR/memories/$memory_file" ]]; then
+            cat "$TEMPLATE_DIR/memories/$memory_file" >> "$agent_ws/memory/MEMORY.md"
+            chown "$user:fagent" "$agent_ws/memory/MEMORY.md"
+            log_ok "Appended to MEMORY.md (from $memory_file)"
         fi
     fi
 
