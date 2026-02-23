@@ -654,6 +654,11 @@ else
     echo "     Then open: http://127.0.0.1:$COMMS_PORT/?token=YOUR_TOKEN"
 fi
 echo ""
+STEP=$((STEP + 1))
+FIRST_AGENT="${AGENT_NAMES[0]}"
+echo "  $STEP. Send your first message (on the web UI):"
+echo "     @$FIRST_AGENT Here's the plan. Let's discuss."
+echo ""
 echo -e "${BOLD}Additionally you can:${NC}"
 echo "  A. View logs:"
 for name in "${AGENT_NAMES[@]}"; do
