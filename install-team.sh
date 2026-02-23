@@ -668,18 +668,3 @@ STEP=$((STEP + 1))
 echo "  $STEP. Check #general — your team will introduce themselves and ask"
 echo "     what you need to get started."
 echo ""
-echo -e "${BOLD}Additionally you can:${NC}"
-echo "  A. View logs:"
-for name in "${AGENT_NAMES[@]}"; do
-    user=$(agent_user "$name")
-    ws="${AGENT_WORKSPACES[$name]}"
-    echo "     sudo su - $user -c 'tail -f ~/workspace/$ws/.autonomy/daemon.log'"
-done
-echo ""
-echo "  B. Stop everything:"
-echo "     sudo $TEAM_DIR/stop-fagents.sh"
-echo ""
-echo "  C. Start/stop individually:"
-echo "     sudo $TEAM_DIR/start-comms.sh    sudo $TEAM_DIR/stop-comms.sh"
-echo "     sudo $TEAM_DIR/start-team.sh   sudo $TEAM_DIR/stop-team.sh"
-echo ""
