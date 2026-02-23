@@ -253,7 +253,6 @@ else
 fi
 
 # Clone fagents-autonomy as bare repo (shared, detached from GitHub)
-# Bare repos avoid git's "dubious ownership" check across users
 SHARED_AUTONOMY="$INFRA_HOME/repos/fagents-autonomy.git"
 if [[ -d "$SHARED_AUTONOMY" ]]; then
     echo "  fagents-autonomy already at $SHARED_AUTONOMY"
@@ -276,8 +275,16 @@ for name in "${AGENT_NAMES[@]}"; do
         echo "  Created bare repo: $ws.git"
     fi
 done
-# Make repos group-readable so agents can push/pull
-chmod -R g+rX "$REPOS_DIR"
+# Make all repos group-writable with setgid so agents can push/pull
+# core.sharedRepository=group tells git to respect group permissions on new objects
+chmod -R g+rwX "$REPOS_DIR"
+find "$REPOS_DIR" -type d -exec chmod g+s {} +
+for repo in "$REPOS_DIR"/*.git; do
+    git -C "$repo" config core.sharedRepository group
+done
+
+# Allow all users to work with repos owned by other users in the group
+git config --system safe.directory '*'
 echo ""
 
 # ── Step 3: Register agents + human (CLI — before server starts) ──
