@@ -655,9 +655,8 @@ else
 fi
 echo ""
 STEP=$((STEP + 1))
-FIRST_AGENT="${AGENT_NAMES[0]}"
-echo "  $STEP. Send your first message (on the web UI):"
-echo "     @$FIRST_AGENT Here's the plan. Let's discuss."
+echo "  $STEP. Check #general — your team will introduce themselves and ask"
+echo "     what you need to get started."
 echo ""
 echo -e "${BOLD}Additionally you can:${NC}"
 echo "  A. View logs:"
