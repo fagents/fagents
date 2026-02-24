@@ -37,6 +37,7 @@ TEMPLATE=""
 AGENTS=()
 HUMAN_NAME=""
 INFRA_USER="fagents"
+HARDENING_DONE=""
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTONOMY_REPO="https://github.com/fagents/fagents-autonomy.git"
@@ -87,6 +88,7 @@ if [[ -f "$SETUP_SEC" ]]; then
     read -rp "Run security hardening? [y/N]: " run_sec
     if [[ "$run_sec" =~ ^[Yy] ]]; then
         bash "$SETUP_SEC" --comms-port "$COMMS_PORT" ${VERBOSE:+--verbose}
+        HARDENING_DONE=1
     else
         echo "  Skipping — you can run setup-security.sh manually later."
     fi
@@ -485,6 +487,24 @@ for name in "${AGENT_NAMES[@]}"; do
             cat "$TEMPLATE_DIR/memories/$memory_file" >> "$agent_ws/memory/MEMORY.md"
             chown "$user:fagent" "$agent_ws/memory/MEMORY.md"
             log_ok "Appended to MEMORY.md (from $memory_file)"
+        fi
+        # Inject security hardening context into ops/bootstrap agent memory
+        if [[ -n "$HARDENING_DONE" && -n "${AGENT_BOOTSTRAP[$name]:-}" ]]; then
+            cat >> "$agent_ws/memory/MEMORY.md" <<'SECEOF'
+
+## Security Hardening (setup-security.sh)
+- Machine was hardened during install. Check with: `ufw status`, `fail2ban-client status`, `sysctl net.ipv4.tcp_syncookies`
+- **Firewall (UFW):** deny all in/out by default. Allowed: SSH in (rate-limited), DNS/HTTP/HTTPS/SSH out. Comms port allowed on loopback only
+- **SSH:** key-only auth, root login disabled, password auth disabled. AllowUsers restricted to the installing human. Agents use localhost, not SSH
+- **fail2ban:** SSH jail active — 5 retries in 10 min = 1hr ban. Won't trigger on localhost activity
+- **Auto-updates:** unattended-upgrades for security patches, auto-reboot at 04:00 if needed
+- **Audit logging:** auditd watches /etc/passwd, /etc/shadow, /etc/sudoers, sshd_config, auth.log, cron, firewall. Check with: `ausearch -k identity`
+- **Kernel:** SYN cookies, rp_filter, no IP forwarding, no ICMP redirects, dmesg restricted
+- **Comms:** runs on localhost — loopback traffic bypasses firewall (UFW before.rules). No SSH tunnel needed in colocated mode
+- **If something is blocked:** check `ufw status numbered` and `journalctl -u ufw` before adding rules. Don't disable the firewall — add specific allows
+SECEOF
+            chown "$user:fagent" "$agent_ws/memory/MEMORY.md"
+            log_ok "Injected security hardening context into MEMORY.md"
         fi
         # Copy template prompt overrides (heartbeat variants)
         if [[ -d "$TEMPLATE_DIR/prompts" ]]; then
