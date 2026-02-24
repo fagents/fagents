@@ -57,13 +57,23 @@ echo ""
 
 # ── Step 1: Stop all processes ──
 echo "=== Step 1: Stop processes ==="
+# Stop comms server (runs under infra user)
+if id "$INFRA_USER" &>/dev/null; then
+    procs=$(pgrep -u "$INFRA_USER" 2>/dev/null || true)
+    if [[ -n "$procs" ]]; then
+        echo "  Stopping comms server ($INFRA_USER)..."
+        pkill -u "$INFRA_USER" 2>/dev/null || true
+        sleep 1
+        pkill -9 -u "$INFRA_USER" 2>/dev/null || true
+    fi
+fi
+# Stop agent daemons
 for user in "${TEAM_USERS[@]}"; do
     procs=$(pgrep -u "$user" 2>/dev/null || true)
     if [[ -n "$procs" ]]; then
         echo "  Killing processes for $user..."
         pkill -u "$user" 2>/dev/null || true
         sleep 1
-        # Force kill stragglers
         pkill -9 -u "$user" 2>/dev/null || true
     fi
 done
