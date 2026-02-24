@@ -229,6 +229,7 @@ if [[ ! -f .gitignore ]]; then
 .introspection-logs
 .autonomy
 .mcp.json
+.env
 GIEOF
     echo "  Created .gitignore"
 fi
@@ -375,6 +376,9 @@ export AGENT="$AGENT_NAME"
 export COMMS_URL="$COMMS_URL"
 $TOKEN_LINE
 export PROJECT_DIR="$WORKSPACE_DIR"
+
+# ── Secrets (from .env, not committed to git) ──
+[[ -f "\$PROJECT_DIR/.env" ]] && source "\$PROJECT_DIR/.env"
 
 # ── Tunnel config (leave empty if comms is local) ──
 export TUNNEL_HOST="$TUNNEL_HOST"

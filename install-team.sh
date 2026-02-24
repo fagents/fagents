@@ -508,8 +508,10 @@ if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
             agent_home=$(eval echo "~$user")
             agent_ws="$agent_home/workspace/$ws"
 
-            # Add token to start-agent.sh
-            sed -i '/^export COMMS_URL=/a export CLAUDE_CODE_OAUTH_TOKEN="'"$CLAUDE_TOKEN"'"' "$agent_ws/start-agent.sh"
+            # Write token to .env (gitignored, not committed)
+            echo "export CLAUDE_CODE_OAUTH_TOKEN=\"$CLAUDE_TOKEN\"" > "$agent_ws/.env"
+            chown "$user:fagent" "$agent_ws/.env"
+            chmod 600 "$agent_ws/.env"
 
             # Create ~/.claude.json for onboarding bypass
             su - "$user" -c "mkdir -p ~/.claude && echo '{\"hasCompletedOnboarding\": true}' > ~/.claude.json"
