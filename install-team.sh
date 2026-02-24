@@ -366,7 +366,7 @@ fi
 for name in "${AGENT_NAMES[@]}"; do
     token="${AGENT_TOKENS[$name]:-}"
     [[ -z "$token" ]] && continue
-    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$name/subscriptions" \
+    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$name/channels" \
         -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
         -d "{\"channels\": [\"general\", \"dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')\"]}" > /dev/null 2>&1 || true
@@ -377,7 +377,7 @@ if [[ -n "$HUMAN_TOKEN" ]]; then
         all_channels+=",\"dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')\""
     done
     all_channels+="]"
-    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$HUMAN_NAME/subscriptions" \
+    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$HUMAN_NAME/channels" \
         -H "Authorization: Bearer $HUMAN_TOKEN" \
         -H "Content-Type: application/json" \
         -d "{\"channels\": $all_channels}" > /dev/null 2>&1 || true
