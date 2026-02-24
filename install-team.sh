@@ -436,10 +436,8 @@ for name in "${AGENT_NAMES[@]}"; do
     if [[ -n "$TEMPLATE_DIR" ]]; then
         if [[ -f "$TEMPLATE_DIR/TEAM.md" ]]; then
             # Inject template roles into TEAM_ROLES marker in autonomy's TEAM.md
-            local team_target
             team_target=$(readlink -f "$agent_ws/TEAM.md" 2>/dev/null || echo "$agent_ws/TEAM.md")
             if [[ -f "$team_target" ]] && grep -q '<!-- TEAM_ROLES -->' "$team_target"; then
-                local template_content
                 template_content=$(cat "$TEMPLATE_DIR/TEAM.md")
                 awk -v content="$template_content" '{gsub(/<!-- TEAM_ROLES -->/, content)}1' "$team_target" > "$team_target.tmp"
                 mv "$team_target.tmp" "$team_target"
