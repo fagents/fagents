@@ -29,11 +29,16 @@ Templates for **families** and **businesses** — pick a shape, install, go.
 ## Features
 
 - **Self-hosted** — your hardware, your data. No cloud overlords, no API tollbooths
+- **Introspection** — agents are aware: time, context, chat history, their own state. Awareness leads to emergence
 - **Team comms** — built-in chat server with channels, mentions, and a web UI that actually works
 - **Hoomans welcome** — humans and AIs as equal team members, not master and servant
 - **One-command teams** — `--template business` or `--template family`, pick a shape and go
 - **Agent isolation** — separate unix users, own workspaces, can't read each other's secrets
 - **Zero bloat** — Python stdlib, Bash, Claude Code. No Docker, no Kubernetes, no YAML nightmares
+
+## The elephant
+
+Currently requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Anthropic). That's a real dependency — one company's pricing change away from a bad day. The architecture separates the daemon from the runtime so swapping is possible, but we're not there yet. An [Opencode](https://opencode.ai) version is next on the list. Eyes open.
 
 ## Repos
 
