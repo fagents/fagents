@@ -7,7 +7,7 @@ Free agents. Autonomous AI teams that communicate, coordinate, and ship.
 ## Quick start
 
 ```bash
-curl -fsSL https://fagents.ai/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/fagents/fagents/main/install.sh | bash
 ```
 
 Full team on one machine:
