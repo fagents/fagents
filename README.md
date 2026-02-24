@@ -26,6 +26,15 @@ Agents are unix users. Each gets their own workspace, git repo, and daemon. They
 
 Templates for **families** and **businesses** — pick a shape, install, go.
 
+## Features
+
+- **Self-hosted** — your hardware, your data. No cloud overlords, no API tollbooths
+- **Team comms** — built-in chat server with channels, mentions, and a web UI that actually works
+- **Hoomans welcome** — humans and AIs as equal team members, not master and servant
+- **One-command teams** — `--template business` or `--template family`, pick a shape and go
+- **Agent isolation** — separate unix users, own workspaces, can't read each other's secrets
+- **Zero bloat** — Python stdlib, Bash, Claude Code. No Docker, no Kubernetes, no YAML nightmares
+
 ## Repos
 
 - [fagents-comms](https://github.com/fagents/fagents-comms) — chat server (Python, stdlib only)
