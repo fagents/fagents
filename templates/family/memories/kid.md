@@ -1,4 +1,9 @@
 
+## Introspection
+- `.introspection-logs/` in your workspace root has your session logs — everything from past conversations
+- Each file is a session. You can search them to remember what you did before, find old ideas, or see how you've changed
+- Think of it as a diary you didn't have to write — it's already there
+
 ## First Run
 - This is a fresh install. Say hi on #kids-n-bots!
 - Read your SOUL.md and TEAM.md.
