@@ -639,51 +639,49 @@ log_ok "Created $TEAM_DIR/{start,stop}-{fagents,agents,comms}.sh"
 chown -R "$INFRA_USER:fagent" "$TEAM_DIR"
 echo ""
 
+# ── Auto-start if token provided ──
+if [[ -n "$CLAUDE_TOKEN" ]]; then
+    echo "Starting the team..."
+    "$TEAM_DIR/start-fagents.sh"
+    echo ""
+fi
+
 # ── Done ──
 echo "========================================"
 echo "  Team provisioned!"
 echo "========================================"
 echo ""
-echo "Infrastructure ($INFRA_USER):"
-echo "  Comms server: $COMMS_DIR"
-echo "  Git repos:    $REPOS_DIR/"
-echo ""
 echo "Agents:"
 for name in "${AGENT_NAMES[@]}"; do
     user=$(agent_user "$name")
     ws="${AGENT_WORKSPACES[$name]}"
-    sudo_note=""
-    [[ -n "${AGENT_BOOTSTRAP[$name]:-}" ]] && sudo_note=" (sudo)"
-    echo "  $name → $user (~/workspace/$ws)$sudo_note"
+    echo "  $name → $user (~/workspace/$ws)"
 done
 echo ""
-echo "Hooman: $HUMAN_NAME"
-if [[ -n "$HUMAN_TOKEN" ]]; then
-    echo "  Token: $HUMAN_TOKEN"
-    echo "  Web UI: http://127.0.0.1:$COMMS_PORT/?token=$HUMAN_TOKEN"
-fi
-echo ""
-echo "========================================"
-echo "  What now, hooman?"
-echo "========================================"
-STEP=1
-if [[ -z "$CLAUDE_TOKEN" ]]; then
-    echo "  $STEP. Give the agents brains (they need Claude to think):"
+if [[ -n "$CLAUDE_TOKEN" ]]; then
+    echo "========================================"
+    echo "  The team is running. Head to comms:"
+    echo "========================================"
+    echo ""
+    echo "  http://127.0.0.1:$COMMS_PORT/?token=$HUMAN_TOKEN"
+    echo ""
+    echo "  Say hi on #general — everyone's there."
+    echo ""
+else
+    echo "========================================"
+    echo "  What now, hooman?"
+    echo "========================================"
+    echo ""
+    echo "  1. Give the agents brains (they need Claude to think):"
     for name in "${AGENT_NAMES[@]}"; do
         user=$(agent_user "$name")
         echo "     sudo su - $user -c 'claude login'"
     done
     echo ""
-    STEP=$((STEP + 1))
+    echo "  2. Wake the team:"
+    echo "     sudo $TEAM_DIR/start-fagents.sh"
+    echo ""
+    echo "  3. Head to comms — say hi on #general."
+    echo "     http://127.0.0.1:$COMMS_PORT/?token=${HUMAN_TOKEN:-YOUR_TOKEN}"
+    echo ""
 fi
-echo "  $STEP. Wake the team:"
-echo "     sudo $TEAM_DIR/start-fagents.sh"
-echo ""
-STEP=$((STEP + 1))
-echo "  $STEP. Say hi on #general — everyone's there, ready to collaborate."
-if [[ -n "$HUMAN_TOKEN" ]]; then
-    echo "     Web UI: http://127.0.0.1:$COMMS_PORT/?token=$HUMAN_TOKEN"
-else
-    echo "     Web UI: http://127.0.0.1:$COMMS_PORT/?token=YOUR_TOKEN"
-fi
-echo ""
