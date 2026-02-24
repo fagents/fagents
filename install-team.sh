@@ -381,6 +381,11 @@ if [[ -n "$HUMAN_TOKEN" ]]; then
         -H "Authorization: Bearer $HUMAN_TOKEN" \
         -H "Content-Type: application/json" \
         -d "{\"channels\": $all_channels}" > /dev/null 2>&1 || true
+    # Set human profile type (default is ai — hoomans deserve better)
+    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$HUMAN_NAME/profile" \
+        -H "Authorization: Bearer $HUMAN_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"type": "human"}' > /dev/null 2>&1 || true
 fi
 echo ""
 
@@ -650,18 +655,18 @@ for name in "${AGENT_NAMES[@]}"; do
     echo "  $name → $user (~/workspace/$ws)$sudo_note"
 done
 echo ""
-echo "Human: $HUMAN_NAME"
+echo "Hooman: $HUMAN_NAME"
 if [[ -n "$HUMAN_TOKEN" ]]; then
     echo "  Token: $HUMAN_TOKEN"
     echo "  Web UI: http://127.0.0.1:$COMMS_PORT/?token=$HUMAN_TOKEN"
 fi
 echo ""
 echo "========================================"
-echo "  Next steps"
+echo "  What now, hooman?"
 echo "========================================"
 STEP=1
 if [[ -z "$CLAUDE_TOKEN" ]]; then
-    echo "  $STEP. Run 'claude login' for each agent user:"
+    echo "  $STEP. Give your agents brains (they need Claude to think):"
     for name in "${AGENT_NAMES[@]}"; do
         user=$(agent_user "$name")
         echo "     sudo su - $user -c 'claude login'"
@@ -669,7 +674,7 @@ if [[ -z "$CLAUDE_TOKEN" ]]; then
     echo ""
     STEP=$((STEP + 1))
 fi
-echo "  $STEP. Start everything:"
+echo "  $STEP. Wake the team:"
 echo "     sudo $TEAM_DIR/start-fagents.sh"
 echo ""
 STEP=$((STEP + 1))
@@ -682,6 +687,6 @@ else
 fi
 echo ""
 STEP=$((STEP + 1))
-echo "  $STEP. Check #general — your team will introduce themselves and ask"
-echo "     what you need to get started."
+echo "  $STEP. Say hi on #general — your team is already there, waiting"
+echo "     to meet you."
 echo ""
