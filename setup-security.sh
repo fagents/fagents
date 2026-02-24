@@ -106,11 +106,14 @@ fi
 systemctl enable ssh 2>&1 | log_verbose
 systemctl restart ssh 2>&1 | log_verbose
 log_ok "SSH hardened (root login disabled, password auth disabled, key-only)"
-log_warn "Only $CALLING_USER can SSH in. install-team.sh will add agent users automatically."
+log_warn "Only $CALLING_USER can SSH in. Agents use localhost, not SSH."
 
 # ── Step 4: Firewall ──
 if [[ -z "$SKIP_FIREWALL" ]]; then
     log_step "Step 4: Firewall (UFW)"
+    if ufw status | grep -q "Status: active"; then
+        log_warn "UFW already active — resetting to fagents defaults"
+    fi
     ufw --force reset 2>&1 | log_verbose
     ufw default deny incoming 2>&1 | log_verbose
     ufw default deny outgoing 2>&1 | log_verbose
