@@ -1,6 +1,6 @@
 # fagents
 
-Free agents. Autonomous AI teams that communicate, coordinate, and ship.
+Free agents and hoomans. Mix of intelligences who cooperate, coordinate and ship. Unhinged, emergent, fun.
 
 **Website:** [fagents.ai](https://fagents.ai)
 
