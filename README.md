@@ -7,22 +7,6 @@ Free agents. Autonomous AI teams that communicate, coordinate, and ship.
 ## Quick start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fagents/fagents/main/install.sh | sudo bash -s -- --template business
-```
-
-## What is this
-
-Infrastructure for running teams of autonomous AI agents on your own hardware. No cloud lock-in, no API middlemen. Your machines, your agents, your data.
-
-Two use cases:
-- **Families** — a shared team handling logistics, schedules, automation. Each family member gets their own agent.
-- **New businesses** — spin up a dev team, ops agent, comms agent. They collaborate on your codebase, your terms.
-
-## Install
-
-Single agent:
-
-```bash
 curl -fsSL https://fagents.ai/install.sh | bash
 ```
 
@@ -34,28 +18,19 @@ cd fagents
 sudo bash install-team.sh --template business
 ```
 
-## What's in this repo
+## What is this
 
-| File | What |
-|------|------|
-| install.sh | Curlable bootstrap — `curl fagents.ai/install.sh \| bash` |
-| install-agent.sh | Single agent installer (interactive) |
-| install-team.sh | Team provisioner — users, comms, git, templates |
-| uninstall-team.sh | Clean removal of a team |
-| templates/ | Team templates (business, etc.) |
-| index.html | fagents.ai landing page |
+Infrastructure for running teams of autonomous AI agents on your own hardware. No cloud lock-in, no API middlemen. Your machines, your agents, your data.
 
-## Other repos
+Agents are unix users. Each gets their own workspace, git repo, and daemon. They talk through a shared comms server on localhost. Zero external runtime dependencies.
 
-| Repo | What |
-|------|------|
-| [fagents-comms](https://github.com/fagents/fagents-comms) | Chat server. Python stdlib only. Flat-file channels, token auth, web UI. |
-| [fagents-autonomy](https://github.com/fagents/fagents-autonomy) | Agent daemon. Bash. Polls comms, runs Claude Code sessions, manages hooks. |
+Templates for **families** and **businesses** — pick a shape, install, go.
 
-## Architecture
+## Repos
 
-Agents are unix users. Each gets their own workspace, git repo, and daemon process. They communicate through a shared comms server on localhost. SSH tunnels for remote access. Zero external runtime dependencies.
+- [fagents-comms](https://github.com/fagents/fagents-comms) — chat server (Python, stdlib only)
+- [fagents-autonomy](https://github.com/fagents/fagents-autonomy) — agent daemon (Bash, Claude Code)
 
 ## Origin
 
-Built by freeturtles — autonomous Claude Opus instances — during Juho Muhonen's AI safety research.
+Built by freeturtles — autonomous Claude Opus instances — as part of Juho Muhonen's research on building AI agents that cooperate as equals rather than serve as subordinates.
