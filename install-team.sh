@@ -72,6 +72,26 @@ log_ok() { echo -e "  ${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
 log_err() { echo -e "  ${RED}✗${NC} $1"; }
 
+# ── Optional: Machine hardening ──
+SETUP_SEC="$SCRIPT_DIR/setup-security.sh"
+if [[ -f "$SETUP_SEC" ]]; then
+    echo ""
+    echo "Before we set up your team, want to harden this machine?"
+    echo "(Firewall, SSH lockdown, auto-updates, audit logging)"
+    echo ""
+    echo "You'll need your laptop's SSH public key. If you don't have one,"
+    echo "run this on your laptop first:"
+    echo ""
+    echo "  ssh-keygen -t ed25519 && cat ~/.ssh/id_ed25519.pub"
+    echo ""
+    read -rp "Run security hardening? [y/N]: " run_sec
+    if [[ "$run_sec" =~ ^[Yy] ]]; then
+        bash "$SETUP_SEC" --comms-port "$COMMS_PORT" ${VERBOSE:+--verbose}
+    else
+        echo "  Skipping — you can run setup-security.sh manually later."
+    fi
+fi
+
 # ── Load template if specified ──
 TEMPLATE_DIR=""
 declare -A AGENT_SOULS
