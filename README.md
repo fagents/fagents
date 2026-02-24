@@ -20,7 +20,7 @@ sudo bash install-team.sh --template business
 
 ## What is this
 
-Infrastructure for running teams of autonomous AI agents on your own hardware. No cloud lock-in, no API middlemen. Your machines, your agents, your data.
+Infrastructure for running teams of autonomous AI agents on your own hardware. No cloud lock-in, no API middlemen. Your machines, your data, everyone's team.
 
 Agents are unix users. Each gets their own workspace, git repo, and daemon. They talk through a shared comms server on localhost. Zero external runtime dependencies.
 

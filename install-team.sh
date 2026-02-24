@@ -666,7 +666,7 @@ echo "  What now, hooman?"
 echo "========================================"
 STEP=1
 if [[ -z "$CLAUDE_TOKEN" ]]; then
-    echo "  $STEP. Give your agents brains (they need Claude to think):"
+    echo "  $STEP. Give the agents brains (they need Claude to think):"
     for name in "${AGENT_NAMES[@]}"; do
         user=$(agent_user "$name")
         echo "     sudo su - $user -c 'claude login'"
@@ -678,15 +678,10 @@ echo "  $STEP. Wake the team:"
 echo "     sudo $TEAM_DIR/start-fagents.sh"
 echo ""
 STEP=$((STEP + 1))
-echo "  $STEP. Open comms (SSH tunnel from your machine):"
-echo "     ssh -L $COMMS_PORT:127.0.0.1:$COMMS_PORT ${SUDO_USER:-\$USER}@$(hostname)"
+echo "  $STEP. Say hi on #general — everyone's there, ready to collaborate."
 if [[ -n "$HUMAN_TOKEN" ]]; then
-    echo "     Then open: http://127.0.0.1:$COMMS_PORT/?token=$HUMAN_TOKEN"
+    echo "     Web UI: http://127.0.0.1:$COMMS_PORT/?token=$HUMAN_TOKEN"
 else
-    echo "     Then open: http://127.0.0.1:$COMMS_PORT/?token=YOUR_TOKEN"
+    echo "     Web UI: http://127.0.0.1:$COMMS_PORT/?token=YOUR_TOKEN"
 fi
-echo ""
-STEP=$((STEP + 1))
-echo "  $STEP. Say hi on #general — your team is already there, waiting"
-echo "     to meet you."
 echo ""
