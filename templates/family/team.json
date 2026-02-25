@@ -8,5 +8,11 @@
     {"name": "Splash", "role": "kid", "soul": "kid.md", "memory": "kid.md"},
     {"name": "Gizmo", "role": "ops", "soul": "ops.md", "memory": "ops.md", "bootstrap": true}
   ],
+  "humans": [
+    {"role": "parent"},
+    {"role": "parent"},
+    {"role": "kid"},
+    {"role": "kid"}
+  ],
   "channels": ["general", "kids-n-bots", "dm-snap", "dm-splash"]
 }

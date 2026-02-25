@@ -35,7 +35,7 @@ SKIP_CLAUDE_AUTH=""
 VERBOSE=""
 TEMPLATE=""
 AGENTS=()
-HUMAN_NAME=""
+HUMAN_NAMES=()
 INFRA_USER="fagents"
 HARDENING_DONE=""
 
@@ -99,6 +99,7 @@ TEMPLATE_DIR=""
 declare -A AGENT_SOULS
 declare -A AGENT_MEMORIES
 declare -A AGENT_BOOTSTRAP
+TEMPLATE_HUMANS=()
 
 load_template() {
     local tdir="$1"
@@ -117,6 +118,12 @@ load_template() {
         [[ -n "$memory" ]] && AGENT_MEMORIES["$name"]="$memory"
         [[ "$is_bootstrap" == "true" ]] && AGENT_BOOTSTRAP["$name"]=1
     done < <(jq -c '.agents[]' "$tdir/team.json")
+    # Read human roles (comms-only accounts)
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        role=$(echo "$line" | jq -r '.role // "member"')
+        TEMPLATE_HUMANS+=("$role")
+    done < <(jq -c '.humans[]? // empty' "$tdir/team.json")
 }
 
 if [[ -n "$TEMPLATE" ]]; then
@@ -186,12 +193,26 @@ echo ""
 echo "Agents: ${AGENTS[*]}"
 prompt COMMS_PORT "Comms server port" "$COMMS_PORT"
 
-# Ask for human name
+# Ask for human names
 echo ""
-echo "A human account is needed to access the web UI and send messages."
-prompt HUMAN_NAME "Your name" ""
-if [[ -z "$HUMAN_NAME" ]]; then
-    echo "ERROR: Human name is required." >&2
+if [[ ${#TEMPLATE_HUMANS[@]} -gt 0 ]]; then
+    echo "Name the humans who'll use comms:"
+    declare -A _role_idx
+    for role in "${TEMPLATE_HUMANS[@]}"; do
+        _role_idx[$role]=$(( ${_role_idx[$role]:-0} + 1 ))
+        n=${_role_idx[$role]}
+        label="${role^} $n"
+        read -rp "  $label: " human_name
+        [[ -n "$human_name" ]] && HUMAN_NAMES+=("$human_name")
+    done
+    unset _role_idx
+else
+    echo "A human account is needed to access the web UI and send messages."
+    prompt human_name "Your name" ""
+    [[ -n "$human_name" ]] && HUMAN_NAMES+=("$human_name")
+fi
+if [[ ${#HUMAN_NAMES[@]} -eq 0 ]]; then
+    echo "ERROR: At least one human name is required." >&2
     exit 1
 fi
 
@@ -207,7 +228,7 @@ fi
 echo ""
 echo "  Infra user:  $INFRA_USER (owns comms + git repos)"
 echo "  Agents:      ${AGENTS[*]}"
-echo "  Human:       $HUMAN_NAME"
+echo "  Humans:      ${HUMAN_NAMES[*]}"
 echo "  Comms:       127.0.0.1:$COMMS_PORT"
 [[ -n "$CLAUDE_TOKEN" ]] && echo "  Claude auth: provided" || echo "  Claude auth: skip (set up manually later)"
 
@@ -337,6 +358,7 @@ echo ""
 # ── Step 3: Register agents + human (CLI — before server starts) ──
 log_step "Step 3: Register agents + human"
 declare -A AGENT_TOKENS
+declare -A HUMAN_TOKENS
 
 # Create general channel (CLI, no server needed)
 su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py create-channel general 2>/dev/null" || true
@@ -354,15 +376,16 @@ for name in "${AGENT_NAMES[@]}"; do
     fi
 done
 
-HUMAN_TOKEN=""
-output=$(su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py add-agent '$HUMAN_NAME'" 2>&1) || true
-token=$(echo "$output" | grep "^Token: " | cut -d' ' -f2)
-if [[ -n "$token" ]]; then
-    HUMAN_TOKEN="$token"
-    log_ok "Registered human: $HUMAN_NAME"
-else
-    log_warn " Failed to register human $HUMAN_NAME"
-fi
+for human in "${HUMAN_NAMES[@]}"; do
+    output=$(su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py add-agent '$human'" 2>&1) || true
+    token=$(echo "$output" | grep "^Token: " | cut -d' ' -f2)
+    if [[ -n "$token" ]]; then
+        HUMAN_TOKENS["$human"]="$token"
+        log_ok "Registered human: $human"
+    else
+        log_warn " Failed to register human $human"
+    fi
+done
 echo ""
 
 # ── Step 4: Start comms server (tokens already on disk) ──
@@ -393,22 +416,24 @@ for name in "${AGENT_NAMES[@]}"; do
         -H "Content-Type: application/json" \
         -d "{\"channels\": [\"general\", \"dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')\"]}" > /dev/null 2>&1 || true
 done
-if [[ -n "$HUMAN_TOKEN" ]]; then
-    all_channels='["general"'
-    for name in "${AGENT_NAMES[@]}"; do
-        all_channels+=",\"dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')\""
-    done
-    all_channels+="]"
-    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$HUMAN_NAME/channels" \
-        -H "Authorization: Bearer $HUMAN_TOKEN" \
+all_channels='["general"'
+for name in "${AGENT_NAMES[@]}"; do
+    all_channels+=",\"dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')\""
+done
+all_channels+="]"
+for human in "${HUMAN_NAMES[@]}"; do
+    token="${HUMAN_TOKENS[$human]:-}"
+    [[ -z "$token" ]] && continue
+    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$human/channels" \
+        -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
         -d "{\"channels\": $all_channels}" > /dev/null 2>&1 || true
     # Set human profile type (default is ai — hoomans deserve better)
-    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$HUMAN_NAME/profile" \
-        -H "Authorization: Bearer $HUMAN_TOKEN" \
+    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$human/profile" \
+        -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
         -d '{"type": "human"}' > /dev/null 2>&1 || true
-fi
+done
 echo ""
 
 # ── Step 5: Install each agent ──
@@ -703,7 +728,10 @@ if [[ -n "$CLAUDE_TOKEN" ]]; then
     echo "  The team is running. Head to comms:"
     echo "========================================"
     echo ""
-    echo "  http://127.0.0.1:$COMMS_PORT/?token=$HUMAN_TOKEN"
+    for human in "${HUMAN_NAMES[@]}"; do
+        token="${HUMAN_TOKENS[$human]:-}"
+        [[ -n "$token" ]] && echo "  $human: http://127.0.0.1:$COMMS_PORT/?token=$token"
+    done
     echo ""
     echo "  Say hi on #general — everyone's there."
     echo ""
@@ -722,6 +750,9 @@ else
     echo "     sudo $TEAM_DIR/start-fagents.sh"
     echo ""
     echo "  3. Head to comms — say hi on #general."
-    echo "     http://127.0.0.1:$COMMS_PORT/?token=${HUMAN_TOKEN:-YOUR_TOKEN}"
+    for human in "${HUMAN_NAMES[@]}"; do
+        token="${HUMAN_TOKENS[$human]:-YOUR_TOKEN}"
+        echo "     $human: http://127.0.0.1:$COMMS_PORT/?token=$token"
+    done
     echo ""
 fi
