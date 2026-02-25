@@ -456,7 +456,7 @@ for name in "${AGENT_NAMES[@]}"; do
             CHANNEL_ALLOW[$ch]+="$name "
         done
     fi
-    dm="dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')"
+    dm="$(echo "$name" | tr '[:upper:]' '[:lower:]')s-cove"
     CHANNEL_ALLOW[$dm]+="$name "
 done
 
@@ -470,7 +470,7 @@ for i in "${!HUMAN_NAMES[@]}"; do
     fi
     paired="${HUMAN_PAIRED_AGENTS[$i]:-}"
     if [[ -n "$paired" ]]; then
-        dm="dm-$(echo "$paired" | tr '[:upper:]' '[:lower:]')"
+        dm="$(echo "$paired" | tr '[:upper:]' '[:lower:]')s-cove"
         CHANNEL_ALLOW[$dm]+="$human "
     fi
 done
@@ -500,7 +500,7 @@ fi
 for name in "${AGENT_NAMES[@]}"; do
     token="${AGENT_TOKENS[$name]:-}"
     [[ -z "$token" ]] && continue
-    dm="dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')"
+    dm="$(echo "$name" | tr '[:upper:]' '[:lower:]')s-cove"
     tc="${AGENT_CHANNELS[$name]:-}"
     if [[ -n "$tc" && "$tc" != "null" ]]; then
         channels=$(echo "$tc" | jq -c ". + [\"$dm\"] | unique")
@@ -520,7 +520,7 @@ for i in "${!HUMAN_NAMES[@]}"; do
     paired="${HUMAN_PAIRED_AGENTS[$i]:-}"
     if [[ -n "$tc" && "$tc" != "null" ]]; then
         if [[ -n "$paired" ]]; then
-            dm="dm-$(echo "$paired" | tr '[:upper:]' '[:lower:]')"
+            dm="$(echo "$paired" | tr '[:upper:]' '[:lower:]')s-cove"
             channels=$(echo "$tc" | jq -c ". + [\"$dm\"] | unique")
         else
             channels="$tc"
@@ -529,7 +529,7 @@ for i in "${!HUMAN_NAMES[@]}"; do
         # Fallback: general + all agent DMs (non-template flow)
         channels='["general"'
         for name in "${AGENT_NAMES[@]}"; do
-            channels+=",\"dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')\""
+            channels+=",\"$(echo "$name" | tr '[:upper:]' '[:lower:]')s-cove\""
         done
         channels+="]"
     fi
