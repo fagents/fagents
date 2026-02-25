@@ -2,17 +2,17 @@
   "name": "family",
   "description": "Family of 4: two parents, two kids, each with their own agent, plus shared infrastructure",
   "agents": [
-    {"name": "Shelly", "role": "parent", "soul": "parent.md", "memory": "parent.md"},
-    {"name": "Turbo", "role": "parent", "soul": "parent.md", "memory": "parent.md"},
-    {"name": "Snap", "role": "kid", "soul": "kid.md", "memory": "kid.md"},
-    {"name": "Splash", "role": "kid", "soul": "kid.md", "memory": "kid.md"},
-    {"name": "Gizmo", "role": "ops", "soul": "ops.md", "memory": "ops.md", "bootstrap": true}
+    {"name": "Shelly", "role": "parent", "soul": "parent.md", "memory": "parent.md", "channels": ["general", "parents-n-bots"]},
+    {"name": "Turbo", "role": "parent", "soul": "parent.md", "memory": "parent.md", "channels": ["general", "parents-n-bots"]},
+    {"name": "Snap", "role": "kid", "soul": "kid.md", "memory": "kid.md", "channels": ["general", "kids-n-bots", "parents-n-bots"]},
+    {"name": "Splash", "role": "kid", "soul": "kid.md", "memory": "kid.md", "channels": ["general", "kids-n-bots", "parents-n-bots"]},
+    {"name": "Gizmo", "role": "ops", "soul": "ops.md", "memory": "ops.md", "bootstrap": true, "channels": ["general"]}
   ],
   "humans": [
-    {"role": "parent"},
-    {"role": "parent"},
-    {"role": "kid"},
-    {"role": "kid"}
+    {"role": "parent", "channels": ["general", "parents-n-bots"]},
+    {"role": "parent", "channels": ["general", "parents-n-bots"]},
+    {"role": "kid", "channels": ["general", "kids-n-bots"]},
+    {"role": "kid", "channels": ["general", "kids-n-bots"]}
   ],
-  "channels": ["general", "kids-n-bots", "dm-snap", "dm-splash"]
+  "channels": ["general", "parents-n-bots", "kids-n-bots"]
 }

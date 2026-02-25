@@ -99,7 +99,13 @@ TEMPLATE_DIR=""
 declare -A AGENT_SOULS
 declare -A AGENT_MEMORIES
 declare -A AGENT_BOOTSTRAP
+declare -A AGENT_CHANNELS
+declare -A AGENT_ROLES
 TEMPLATE_HUMANS=()
+TEMPLATE_HUMAN_CHANNELS=()
+HUMAN_ROLES=()
+HUMAN_CHANNELS=()
+HUMAN_PAIRED_AGENTS=()
 
 load_template() {
     local tdir="$1"
@@ -113,16 +119,22 @@ load_template() {
         soul=$(echo "$line" | jq -r '.soul // empty')
         memory=$(echo "$line" | jq -r '.memory // empty')
         is_bootstrap=$(echo "$line" | jq -r '.bootstrap // false')
+        role=$(echo "$line" | jq -r '.role // empty')
+        channels=$(echo "$line" | jq -c '.channels // empty')
         AGENTS+=("$name")
         [[ -n "$soul" ]] && AGENT_SOULS["$name"]="$soul"
         [[ -n "$memory" ]] && AGENT_MEMORIES["$name"]="$memory"
         [[ "$is_bootstrap" == "true" ]] && AGENT_BOOTSTRAP["$name"]=1
+        [[ -n "$role" ]] && AGENT_ROLES["$name"]="$role"
+        [[ -n "$channels" && "$channels" != "null" ]] && AGENT_CHANNELS["$name"]="$channels"
     done < <(jq -c '.agents[]' "$tdir/team.json")
-    # Read human roles (comms-only accounts)
+    # Read human roles and channels (comms-only accounts)
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         role=$(echo "$line" | jq -r '.role // "member"')
+        channels=$(echo "$line" | jq -c '.channels // empty')
         TEMPLATE_HUMANS+=("$role")
+        TEMPLATE_HUMAN_CHANNELS+=("${channels}")
     done < <(jq -c '.humans[]? // empty' "$tdir/team.json")
 }
 
@@ -182,6 +194,8 @@ if [[ -n "$TEMPLATE_DIR" && -z "${NONINTERACTIVE:-}" ]]; then
             [[ -n "${AGENT_SOULS[$name]:-}" ]] && AGENT_SOULS["$new_name"]="${AGENT_SOULS[$name]}" && unset "AGENT_SOULS[$name]"
             [[ -n "${AGENT_MEMORIES[$name]:-}" ]] && AGENT_MEMORIES["$new_name"]="${AGENT_MEMORIES[$name]}" && unset "AGENT_MEMORIES[$name]"
             [[ -n "${AGENT_BOOTSTRAP[$name]:-}" ]] && AGENT_BOOTSTRAP["$new_name"]=1 && unset "AGENT_BOOTSTRAP[$name]"
+            [[ -n "${AGENT_CHANNELS[$name]:-}" ]] && AGENT_CHANNELS["$new_name"]="${AGENT_CHANNELS[$name]}" && unset "AGENT_CHANNELS[$name]"
+            [[ -n "${AGENT_ROLES[$name]:-}" ]] && AGENT_ROLES["$new_name"]="${AGENT_ROLES[$name]}" && unset "AGENT_ROLES[$name]"
         fi
         RENAMED_AGENTS+=("$new_name")
     done
@@ -198,18 +212,43 @@ echo ""
 if [[ ${#TEMPLATE_HUMANS[@]} -gt 0 ]]; then
     echo "Name the humans who'll use comms:"
     declare -A _role_idx
-    for role in "${TEMPLATE_HUMANS[@]}"; do
+    for i in "${!TEMPLATE_HUMANS[@]}"; do
+        role="${TEMPLATE_HUMANS[$i]}"
         _role_idx[$role]=$(( ${_role_idx[$role]:-0} + 1 ))
         n=${_role_idx[$role]}
         label="${role^} $n"
         read -rp "  $label: " human_name
-        [[ -n "$human_name" ]] && HUMAN_NAMES+=("$human_name")
+        if [[ -n "$human_name" ]]; then
+            HUMAN_NAMES+=("$human_name")
+            HUMAN_ROLES+=("$role")
+            HUMAN_CHANNELS+=("${TEMPLATE_HUMAN_CHANNELS[$i]:-}")
+        fi
     done
     unset _role_idx
+    # Pair humans with agents by role (positional within each role)
+    declare -A _role_agents
+    for name in "${AGENTS[@]}"; do
+        r="${AGENT_ROLES[$name]:-}"
+        [[ -n "$r" ]] && _role_agents[$r]+="$name "
+    done
+    declare -A _pair_idx
+    for i in "${!HUMAN_NAMES[@]}"; do
+        role="${HUMAN_ROLES[$i]}"
+        idx=${_pair_idx[$role]:-0}
+        read -ra _agents_arr <<< "${_role_agents[$role]:-}"
+        HUMAN_PAIRED_AGENTS+=("${_agents_arr[$idx]:-}")
+        _pair_idx[$role]=$(( idx + 1 ))
+    done
+    unset _role_agents _pair_idx _agents_arr
 else
     echo "A human account is needed to access the web UI and send messages."
     prompt human_name "Your name" ""
-    [[ -n "$human_name" ]] && HUMAN_NAMES+=("$human_name")
+    if [[ -n "$human_name" ]]; then
+        HUMAN_NAMES+=("$human_name")
+        HUMAN_ROLES+=("")
+        HUMAN_CHANNELS+=("")
+        HUMAN_PAIRED_AGENTS+=("")
+    fi
 fi
 if [[ ${#HUMAN_NAMES[@]} -eq 0 ]]; then
     echo "ERROR: At least one human name is required." >&2
@@ -360,8 +399,14 @@ log_step "Step 3: Register agents + human"
 declare -A AGENT_TOKENS
 declare -A HUMAN_TOKENS
 
-# Create general channel (CLI, no server needed)
-su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py create-channel general 2>/dev/null" || true
+# Create channels (CLI, no server needed)
+if [[ -n "$TEMPLATE_DIR" && -f "$TEMPLATE_DIR/team.json" ]]; then
+    while IFS= read -r ch; do
+        su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py create-channel '$ch' 2>/dev/null" || true
+    done < <(jq -r '.channels[]?' "$TEMPLATE_DIR/team.json")
+else
+    su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py create-channel general 2>/dev/null" || true
+fi
 
 # Register via CLI (writes tokens.json directly — server not running yet)
 for name in "${AGENT_NAMES[@]}"; do
@@ -411,23 +456,43 @@ fi
 for name in "${AGENT_NAMES[@]}"; do
     token="${AGENT_TOKENS[$name]:-}"
     [[ -z "$token" ]] && continue
+    dm="dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')"
+    tc="${AGENT_CHANNELS[$name]:-}"
+    if [[ -n "$tc" && "$tc" != "null" ]]; then
+        channels=$(echo "$tc" | jq -c ". + [\"$dm\"] | unique")
+    else
+        channels="[\"general\",\"$dm\"]"
+    fi
     curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$name/channels" \
         -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
-        -d "{\"channels\": [\"general\", \"dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')\"]}" > /dev/null 2>&1 || true
+        -d "{\"channels\": $channels}" > /dev/null 2>&1 || true
 done
-all_channels='["general"'
-for name in "${AGENT_NAMES[@]}"; do
-    all_channels+=",\"dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')\""
-done
-all_channels+="]"
-for human in "${HUMAN_NAMES[@]}"; do
+for i in "${!HUMAN_NAMES[@]}"; do
+    human="${HUMAN_NAMES[$i]}"
     token="${HUMAN_TOKENS[$human]:-}"
     [[ -z "$token" ]] && continue
+    tc="${HUMAN_CHANNELS[$i]:-}"
+    paired="${HUMAN_PAIRED_AGENTS[$i]:-}"
+    if [[ -n "$tc" && "$tc" != "null" ]]; then
+        if [[ -n "$paired" ]]; then
+            dm="dm-$(echo "$paired" | tr '[:upper:]' '[:lower:]')"
+            channels=$(echo "$tc" | jq -c ". + [\"$dm\"] | unique")
+        else
+            channels="$tc"
+        fi
+    else
+        # Fallback: general + all agent DMs (non-template flow)
+        channels='["general"'
+        for name in "${AGENT_NAMES[@]}"; do
+            channels+=",\"dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')\""
+        done
+        channels+="]"
+    fi
     curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$human/channels" \
         -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
-        -d "{\"channels\": $all_channels}" > /dev/null 2>&1 || true
+        -d "{\"channels\": $channels}" > /dev/null 2>&1 || true
     # Set human profile type (default is ai — hoomans deserve better)
     curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$human/profile" \
         -H "Authorization: Bearer $token" \

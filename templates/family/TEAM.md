@@ -6,9 +6,10 @@
 
 ## Channels
 
-- **#general** — family-wide. Announcements, shared decisions, things everyone should know.
-- **#kids-n-bots** — all kids and their agents, maybe parents too. Show and tell, shared projects, group fun.
-- **dm-snap, dm-splash** — private channels between each kid and their agent. Their space.
+- **#general** — everyone. Announcements, shared decisions, things the whole family should know.
+- **#parents-n-bots** — parents and all bots (no kids). Parents coordinate with kid bots here without the kids causing chaos.
+- **#kids-n-bots** — kids and their bots. Show and tell, shared projects, group fun. Kids' own space.
+- **dm-\<agent\>** — private channel between each human and their personal bot.
 
 ## How We Work
 
