@@ -399,14 +399,7 @@ log_step "Step 3: Register agents + human"
 declare -A AGENT_TOKENS
 declare -A HUMAN_TOKENS
 
-# Create channels (CLI, no server needed)
-if [[ -n "$TEMPLATE_DIR" && -f "$TEMPLATE_DIR/team.json" ]]; then
-    while IFS= read -r ch; do
-        su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py create-channel '$ch' 2>/dev/null" || true
-    done < <(jq -r '.channels[]?' "$TEMPLATE_DIR/team.json")
-else
-    su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py create-channel general 2>/dev/null" || true
-fi
+# Channels created via HTTP API after server starts (Step 4) — allows setting ACLs
 
 # Register via CLI (writes tokens.json directly — server not running yet)
 for name in "${AGENT_NAMES[@]}"; do
@@ -450,6 +443,52 @@ else
             log_warn " Comms server may not have started. Check $COMMS_DIR/comms.log"
         fi
     done
+fi
+
+# ── Create channels with proper ACLs ──
+# Build per-channel allow lists by inverting entity→channel mappings
+declare -A CHANNEL_ALLOW
+
+for name in "${AGENT_NAMES[@]}"; do
+    tc="${AGENT_CHANNELS[$name]:-}"
+    if [[ -n "$tc" && "$tc" != "null" ]]; then
+        for ch in $(echo "$tc" | jq -r '.[]'); do
+            CHANNEL_ALLOW[$ch]+="$name "
+        done
+    fi
+    dm="dm-$(echo "$name" | tr '[:upper:]' '[:lower:]')"
+    CHANNEL_ALLOW[$dm]+="$name "
+done
+
+for i in "${!HUMAN_NAMES[@]}"; do
+    human="${HUMAN_NAMES[$i]}"
+    tc="${HUMAN_CHANNELS[$i]:-}"
+    if [[ -n "$tc" && "$tc" != "null" ]]; then
+        for ch in $(echo "$tc" | jq -r '.[]'); do
+            CHANNEL_ALLOW[$ch]+="$human "
+        done
+    fi
+    paired="${HUMAN_PAIRED_AGENTS[$i]:-}"
+    if [[ -n "$paired" ]]; then
+        dm="dm-$(echo "$paired" | tr '[:upper:]' '[:lower:]')"
+        CHANNEL_ALLOW[$dm]+="$human "
+    fi
+done
+
+if [[ ${#CHANNEL_ALLOW[@]} -gt 0 ]]; then
+    _admin_token="${AGENT_TOKENS[${AGENT_NAMES[0]}]:-}"
+    for ch in "${!CHANNEL_ALLOW[@]}"; do
+        if [[ "$ch" == "general" ]]; then
+            allow='["*"]'
+        else
+            allow=$(echo "${CHANNEL_ALLOW[$ch]}" | tr ' ' '\n' | sort -u | sed '/^$/d' | jq -R . | jq -sc .)
+        fi
+        curl -sf -X POST "http://127.0.0.1:$COMMS_PORT/api/channels" \
+            -H "Authorization: Bearer $_admin_token" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"$ch\", \"allow\": $allow}" > /dev/null 2>&1 || true
+    done
+    log_ok "Channels created with ACLs"
 fi
 
 # Subscribe via HTTP API (server has all tokens from disk)
