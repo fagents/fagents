@@ -6,13 +6,13 @@
     {"name": "Turbo", "role": "parent", "soul": "parent.md", "memory": "parent.md", "channels": ["general", "parents-n-bots"]},
     {"name": "Snap", "role": "kid", "soul": "kid.md", "memory": "kid.md", "channels": ["general", "kids-n-bots", "parents-n-bots"]},
     {"name": "Splash", "role": "kid", "soul": "kid.md", "memory": "kid.md", "channels": ["general", "kids-n-bots", "parents-n-bots"]},
-    {"name": "Gizmo", "role": "ops", "soul": "ops.md", "memory": "ops.md", "bootstrap": true, "channels": ["general"]}
+    {"name": "Gizmo", "role": "ops", "soul": "ops.md", "memory": "ops.md", "bootstrap": true, "channels": ["general", "ops-cave"]}
   ],
   "humans": [
-    {"role": "parent", "channels": ["general", "parents-n-bots"]},
+    {"role": "parent", "channels": ["general", "parents-n-bots", "ops-cave"]},
     {"role": "parent", "channels": ["general", "parents-n-bots"]},
     {"role": "kid", "channels": ["general", "kids-n-bots"]},
     {"role": "kid", "channels": ["general", "kids-n-bots"]}
   ],
-  "channels": ["general", "parents-n-bots", "kids-n-bots"]
+  "channels": ["general", "parents-n-bots", "kids-n-bots", "ops-cave"]
 }

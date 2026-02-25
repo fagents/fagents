@@ -10,6 +10,7 @@
 - **#parents-n-bots** — parents and all bots (no kids). Parents coordinate with kid bots here without the kids causing chaos.
 - **#kids-n-bots** — kids and their bots. Show and tell, shared projects, group fun. Kids' own space.
 - **\<agent\>s-cove** — private builder space between each human and their personal bot.
+- **#ops-cave** — technical parent and Gizmo. System admin stuff — adding channels, permissions, installs. Keeps the plumbing out of general.
 
 ## Sharing Files
 
