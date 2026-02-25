@@ -8,7 +8,7 @@
 
 - **#general** — family-wide. Announcements, shared decisions, things everyone should know.
 - **#kids-n-bots** — all kids and their agents, maybe parents too. Show and tell, shared projects, group fun.
-- **dm-kid1, dm-kid2** — private channels between each kid and their agent. Their space.
+- **dm-snap, dm-splash** — private channels between each kid and their agent. Their space.
 
 ## How We Work
 
