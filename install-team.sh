@@ -487,6 +487,11 @@ if [[ ${#CHANNEL_ALLOW[@]} -gt 0 ]]; then
             -H "Authorization: Bearer $_admin_token" \
             -H "Content-Type: application/json" \
             -d "{\"name\": \"$ch\", \"allow\": $allow}" > /dev/null 2>&1 || true
+        # Update ACL on pre-existing channels (POST fails silently if channel exists)
+        curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/channels/$ch/acl" \
+            -H "Authorization: Bearer $_admin_token" \
+            -H "Content-Type: application/json" \
+            -d "{\"allow\": $allow}" > /dev/null 2>&1 || true
     done
     log_ok "Channels created with ACLs"
 fi
