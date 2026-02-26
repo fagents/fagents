@@ -599,7 +599,7 @@ for name in "${AGENT_NAMES[@]}"; do
     case "${AGENT_ROLES[$name]:-}" in
         parent) wake_chs="$dm_channel,parents-n-bots" ;;
         kid)    wake_chs="$dm_channel,kids-n-bots" ;;
-        ops)    wake_chs="$dm_channel,general" ;;
+        ops|coo|dev) wake_chs="$dm_channel,general" ;;
     esac
     curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$name/config" \
         -H "Authorization: Bearer $token" \
