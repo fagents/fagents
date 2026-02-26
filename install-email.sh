@@ -145,15 +145,47 @@ systemctl daemon-reload
 systemctl enable "$SERVICE_NAME" --quiet 2>/dev/null
 systemctl restart "$SERVICE_NAME"
 
-# Wait for it to come up
+# Wait for it to come up and verify MCP endpoint works
+# Extract first agent's API key for the MCP endpoint test
+TEST_KEY=$(jq -r '.agents | to_entries[0].value.apiKey' "$INSTALL_DIR/agents.json")
+
+verify_mcp() {
+    # Check /health first (basic HTTP)
+    curl -sf "http://127.0.0.1:$EMAIL_PORT/health" > /dev/null 2>&1 || return 1
+    # Then verify /mcp actually handles requests (catches stale process issues)
+    local resp
+    resp=$(curl -sf -X POST "http://127.0.0.1:$EMAIL_PORT/mcp" \
+        -H "Content-Type: application/json" \
+        -H "Accept: application/json, text/event-stream" \
+        -H "x-api-key: $TEST_KEY" \
+        -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"install-verify","version":"1.0"}},"id":1}' 2>/dev/null)
+    echo "$resp" | grep -q '"protocolVersion"' 2>/dev/null
+}
+
+MCP_OK=""
 for i in 1 2 3 4 5; do
     sleep 1
-    if curl -sf "http://127.0.0.1:$EMAIL_PORT/health" > /dev/null 2>&1; then
-        echo "  Email MCP server running on port $EMAIL_PORT"
+    if verify_mcp; then
+        MCP_OK=1
         break
     fi
-    if [[ $i -eq 5 ]]; then
-        echo "  WARNING: Email MCP server may not have started."
-        echo "  Check: journalctl -u $SERVICE_NAME -n 20"
-    fi
 done
+
+if [[ -z "$MCP_OK" ]]; then
+    echo "  MCP endpoint not responding — restarting service..."
+    systemctl restart "$SERVICE_NAME"
+    for i in 1 2 3 4 5; do
+        sleep 1
+        if verify_mcp; then
+            MCP_OK=1
+            break
+        fi
+    done
+fi
+
+if [[ -n "$MCP_OK" ]]; then
+    echo "  Email MCP server running on port $EMAIL_PORT (verified)"
+else
+    echo "  WARNING: Email MCP server may not have started correctly."
+    echo "  Check: journalctl -u $SERVICE_NAME -n 20"
+fi
