@@ -387,7 +387,7 @@ export MCP_LOCAL_PORT="$MCP_LOCAL_PORT"
 export MCP_REMOTE_PORT="$MCP_REMOTE_PORT"
 
 # ── Daemon config ──
-export WAKE_CHANNELS="*"
+export WAKE_CHANNELS=""
 export HEARTBEAT_INTERVAL="300"
 
 # ── Launch ──
