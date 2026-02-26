@@ -44,14 +44,6 @@ prompt GIT_HOST     "Git server (SSH, or 'local' for no remote)" "local"
 prompt COMMS_URL    "Comms server URL" "http://127.0.0.1:9754"
 prompt AUTONOMY_REPO "fagents-autonomy git repo URL" "https://github.com/fagents/fagents-autonomy.git"
 prompt COMMS_TOKEN  "Existing comms token (leave empty to register new)" ""
-prompt MCP_ENABLED  "Enable MCP tools? (Y/n)" "Y"
-
-MCP_LOCAL_PORT=""
-MCP_REMOTE_PORT=""
-if [[ "${MCP_ENABLED,,}" == "y" ]]; then
-    MCP_LOCAL_PORT=9755
-    MCP_REMOTE_PORT=3000
-fi
 
 echo ""
 echo "Configuration:"
@@ -60,7 +52,6 @@ echo "  Workspace: $WORKSPACE"
 echo "  Git host:  $GIT_HOST"
 echo "  Comms:     $COMMS_URL"
 echo "  Autonomy:  $AUTONOMY_REPO"
-echo "  MCP:       ${MCP_ENABLED,,}"
 echo ""
 
 # Extract port from COMMS_URL (used for tunnels + start script)
@@ -301,34 +292,6 @@ else
     echo "  Set up SSH tunnel and register manually later."
 fi
 
-# ── Step 5b: MCP configuration ──
-if [[ "${MCP_ENABLED,,}" == "y" && -n "$COMMS_TOKEN" ]]; then
-    echo ""
-    echo "=== Step 5b: MCP configuration ==="
-    if [[ ! -f "$WORKSPACE_DIR/.mcp.json" ]]; then
-        cat > "$WORKSPACE_DIR/.mcp.json" << MCPEOF
-{
-  "mcpServers": {
-    "other-things": {
-      "type": "http",
-      "url": "http://127.0.0.1:${MCP_LOCAL_PORT}/mcp",
-      "headers": {
-        "x-api-key": "$COMMS_TOKEN"
-      }
-    }
-  }
-}
-MCPEOF
-        echo "  Created .mcp.json (API key = comms token)"
-    else
-        echo "  .mcp.json already exists — skipping."
-    fi
-elif [[ "${MCP_ENABLED,,}" == "y" && -z "$COMMS_TOKEN" ]]; then
-    echo ""
-    echo "=== Step 5b: MCP configuration ==="
-    echo "  Skipped — no comms token available. Create .mcp.json manually after registration."
-fi
-
 # ── Step 6: Initial commit ──
 echo ""
 echo "=== Step 6: Initial commit ==="
@@ -383,8 +346,6 @@ export PROJECT_DIR="$WORKSPACE_DIR"
 # ── Tunnel config (leave empty if comms is local) ──
 export TUNNEL_HOST="$TUNNEL_HOST"
 export COMMS_PORT="$COMMS_PORT"
-export MCP_LOCAL_PORT="$MCP_LOCAL_PORT"
-export MCP_REMOTE_PORT="$MCP_REMOTE_PORT"
 
 # ── Daemon config ──
 export WAKE_CHANNELS=""

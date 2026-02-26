@@ -12,7 +12,6 @@
 #   --template NAME         Use a team template (e.g., business)
 #   --comms-port PORT       Comms server port (default: 9754)
 #   --comms-repo URL        fagents-comms git repo URL (default: GitHub)
-#   --mcp-port PORT         MCP local port (enables MCP for all agents)
 #   --skip-claude-auth             Skip Claude Code authentication setup
 #   --verbose                      Show full output (default: summary only)
 #
@@ -30,7 +29,6 @@ set -euo pipefail
 # ── Defaults ──
 COMMS_PORT=9754
 COMMS_REPO="https://github.com/fagents/fagents-comms.git"
-MCP_PORT=""
 SKIP_CLAUDE_AUTH=""
 VERBOSE=""
 TEMPLATE=""
@@ -48,7 +46,6 @@ while [[ $# -gt 0 ]]; do
         --template)     TEMPLATE="$2"; shift 2 ;;
         --comms-port)   COMMS_PORT="$2"; shift 2 ;;
         --comms-repo)   COMMS_REPO="$2"; shift 2 ;;
-        --mcp-port)     MCP_PORT="$2"; shift 2 ;;
         --skip-claude-auth)    SKIP_CLAUDE_AUTH=1; shift ;;
         --verbose|-v)   VERBOSE=1; shift ;;
         --help|-h)
@@ -72,6 +69,28 @@ log_step() { echo ""; echo -e "${BOLD}=== $1 ===${NC}"; }
 log_ok() { echo -e "  ${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
 log_err() { echo -e "  ${RED}✗${NC} $1"; }
+
+# ── MCP helper: add a server to an agent's .mcp.json ──
+add_mcp_server() {
+    local ws_dir="$1" owner="$2" name="$3" url="$4" api_key="$5"
+    local mcp_file="$ws_dir/.mcp.json"
+
+    if [[ -f "$mcp_file" ]]; then
+        # Merge into existing .mcp.json
+        local tmp
+        tmp=$(jq --arg name "$name" --arg url "$url" --arg key "$api_key" \
+            '.mcpServers[$name] = {"type": "http", "url": $url, "headers": {"x-api-key": $key}}' \
+            "$mcp_file")
+        echo "$tmp" > "$mcp_file"
+    else
+        # Create new .mcp.json
+        jq -n --arg name "$name" --arg url "$url" --arg key "$api_key" \
+            '{mcpServers: {($name): {"type": "http", "url": $url, "headers": {"x-api-key": $key}}}}' \
+            > "$mcp_file"
+    fi
+    chown "$owner:fagent" "$mcp_file"
+    chmod 600 "$mcp_file"
+}
 
 # ── Optional: Machine hardening ──
 SETUP_SEC="$SCRIPT_DIR/setup-security.sh"
@@ -577,15 +596,6 @@ for name in "${AGENT_NAMES[@]}"; do
     echo ""
     echo "  $name ($user):"
 
-    MCP_ENABLED="n"
-    MCP_LOCAL_PORT_VAL=""
-    MCP_REMOTE_PORT_VAL=""
-    if [[ -n "$MCP_PORT" ]]; then
-        MCP_ENABLED="Y"
-        MCP_LOCAL_PORT_VAL="$MCP_PORT"
-        MCP_REMOTE_PORT_VAL="$MCP_PORT"
-    fi
-
     su - "$user" -c "
         export NONINTERACTIVE=1
         export AGENT_NAME='$name'
@@ -594,9 +604,6 @@ for name in "${AGENT_NAMES[@]}"; do
         export COMMS_URL='http://127.0.0.1:$COMMS_PORT'
         export COMMS_TOKEN='$token'
         export AUTONOMY_REPO='$AUTONOMY_REPO'
-        export MCP_ENABLED='$MCP_ENABLED'
-        export MCP_LOCAL_PORT='$MCP_LOCAL_PORT_VAL'
-        export MCP_REMOTE_PORT='$MCP_REMOTE_PORT_VAL'
         bash '$INSTALL_SCRIPT'
     " 2>&1 | log_verbose
 
@@ -682,6 +689,99 @@ SECEOF
 done
 
 rm -f "$INSTALL_SCRIPT"
+
+# ── Step 5b: Email MCP setup (optional) ──
+EMAIL_PORT=$((COMMS_PORT + 1))
+EMAIL_CONFIGURED=""
+declare -A EMAIL_FROM
+
+echo ""
+read -rp "Enable email for agents? [y/N]: " enable_email
+if [[ "${enable_email,,}" =~ ^y ]]; then
+    log_step "Step 5b: Email setup"
+
+    # Which agents get email?
+    echo ""
+    echo "  Which agents should have email?"
+    for i in "${!AGENT_NAMES[@]}"; do
+        echo "    $((i+1)). ${AGENT_NAMES[$i]}"
+    done
+    echo "    a. All agents"
+    echo ""
+    read -rp "  Select (numbers separated by spaces, or 'a' for all): " email_selection
+
+    EMAIL_AGENTS=()
+    if [[ "$email_selection" == "a" ]]; then
+        EMAIL_AGENTS=("${AGENT_NAMES[@]}")
+    else
+        for num in $email_selection; do
+            idx=$((num - 1))
+            if [[ $idx -ge 0 && $idx -lt ${#AGENT_NAMES[@]} ]]; then
+                EMAIL_AGENTS+=("${AGENT_NAMES[$idx]}")
+            fi
+        done
+    fi
+
+    if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
+        # Per-agent SMTP_FROM
+        echo ""
+        echo "  From address for each agent:"
+        for name in "${EMAIL_AGENTS[@]}"; do
+            read -rp "    $name sends as: " from_addr
+            EMAIL_FROM[$name]="$from_addr"
+        done
+
+        # Shared SMTP/IMAP config
+        echo ""
+        echo "  SMTP configuration (outgoing mail):"
+        prompt smtp_host "    SMTP host" ""
+        prompt smtp_port "    SMTP port" "587"
+        prompt smtp_user "    SMTP user" ""
+        read -rsp "    SMTP password: " smtp_pass; echo ""
+
+        echo "  IMAP configuration (incoming mail):"
+        prompt imap_host "    IMAP host" "$smtp_host"
+        prompt imap_port "    IMAP port" "993"
+        prompt imap_user "    IMAP user" "$smtp_user"
+        read -rsp "    IMAP password (Enter = same as SMTP): " imap_pass; echo ""
+        [[ -z "$imap_pass" ]] && imap_pass="$smtp_pass"
+
+        # Build agent specs for install-email.sh
+        email_agent_args=()
+        for name in "${EMAIL_AGENTS[@]}"; do
+            token="${AGENT_TOKENS[$name]:-}"
+            from="${EMAIL_FROM[$name]:-}"
+            email_agent_args+=(--agent "$name:$token:$from")
+        done
+
+        # Run install-email.sh
+        SMTP_HOST="$smtp_host" \
+        SMTP_PORT="$smtp_port" \
+        SMTP_USER="$smtp_user" \
+        SMTP_PASS="$smtp_pass" \
+        IMAP_HOST="$imap_host" \
+        IMAP_PORT="$imap_port" \
+        IMAP_USER="$imap_user" \
+        IMAP_PASS="$imap_pass" \
+        bash "$SCRIPT_DIR/install-email.sh" \
+            --port "$EMAIL_PORT" \
+            --dir "$INFRA_HOME/fagents-mcp" \
+            --user "$INFRA_USER" \
+            "${email_agent_args[@]}"
+
+        # Add fagents-mcp to each email agent's .mcp.json
+        for name in "${EMAIL_AGENTS[@]}"; do
+            user=$(agent_user "$name")
+            ws="${AGENT_WORKSPACES[$name]}"
+            agent_home=$(eval echo "~$user")
+            agent_ws="$agent_home/workspace/$ws"
+            token="${AGENT_TOKENS[$name]:-}"
+            add_mcp_server "$agent_ws" "$user" "fagents-mcp" "http://127.0.0.1:$EMAIL_PORT/mcp" "$token"
+            log_ok "$name: email configured"
+        done
+        EMAIL_CONFIGURED=1
+    fi
+fi
 
 # ── Step 6: Claude Code setup ──
 if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
@@ -815,26 +915,68 @@ AGENTSTOP
 done
 chmod +x "$TEAM_DIR/stop-team.sh"
 
-# start-fagents.sh (shortcut: comms + agents)
-cat > "$TEAM_DIR/start-fagents.sh" << STARTALL
+# start/stop email MCP (if configured)
+if [[ -n "$EMAIL_CONFIGURED" ]]; then
+    cat > "$TEAM_DIR/start-email.sh" << 'STARTEMAIL'
 #!/bin/bash
-# Start everything: comms server + agent daemons
+# Start the email MCP server
+set -euo pipefail
+echo "Starting email MCP server..."
+if systemctl is-active --quiet fagents-mcp; then
+    echo "  Already running"
+else
+    sudo systemctl start fagents-mcp
+    sleep 1
+    echo "  Started"
+fi
+STARTEMAIL
+    chmod +x "$TEAM_DIR/start-email.sh"
+
+    cat > "$TEAM_DIR/stop-email.sh" << 'STOPEMAIL'
+#!/bin/bash
+# Stop the email MCP server
+set -euo pipefail
+echo "Stopping email MCP server..."
+if systemctl is-active --quiet fagents-mcp; then
+    sudo systemctl stop fagents-mcp
+    echo "  Stopped"
+else
+    echo "  Not running"
+fi
+STOPEMAIL
+    chmod +x "$TEAM_DIR/stop-email.sh"
+fi
+
+# start-fagents.sh (shortcut: comms + email + agents)
+{
+cat << STARTALL
+#!/bin/bash
+# Start everything: comms server + services + agent daemons
 set -euo pipefail
 SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 "\$SCRIPT_DIR/start-comms.sh"
-"\$SCRIPT_DIR/start-team.sh"
 STARTALL
+if [[ -n "$EMAIL_CONFIGURED" ]]; then
+    echo '"$SCRIPT_DIR/start-email.sh"'
+fi
+echo '"$SCRIPT_DIR/start-team.sh"'
+} > "$TEAM_DIR/start-fagents.sh"
 chmod +x "$TEAM_DIR/start-fagents.sh"
 
-# stop-fagents.sh (shortcut: agents + comms)
-cat > "$TEAM_DIR/stop-fagents.sh" << STOPALL
+# stop-fagents.sh (shortcut: agents + services + comms)
+{
+cat << STOPALL
 #!/bin/bash
-# Stop everything: agent daemons + comms server
+# Stop everything: agent daemons + services + comms server
 set -euo pipefail
 SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 "\$SCRIPT_DIR/stop-team.sh"
-"\$SCRIPT_DIR/stop-comms.sh"
 STOPALL
+if [[ -n "$EMAIL_CONFIGURED" ]]; then
+    echo '"$SCRIPT_DIR/stop-email.sh"'
+fi
+echo '"$SCRIPT_DIR/stop-comms.sh"'
+} > "$TEAM_DIR/stop-fagents.sh"
 chmod +x "$TEAM_DIR/stop-fagents.sh"
 
 log_ok "Created $TEAM_DIR/{start,stop}-{fagents,agents,comms}.sh"
