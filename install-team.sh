@@ -593,6 +593,14 @@ for name in "${AGENT_NAMES[@]}"; do
         log_ok "Git remote → $REPOS_DIR/$ws.git"
     fi
 
+    # Set DM channel as default wake_channel (agent wakes on all DM msgs + mentions everywhere)
+    dm_channel="$(echo "$name" | tr '[:upper:]' '[:lower:]')s-cove"
+    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$name/config" \
+        -H "Authorization: Bearer $token" \
+        -H "Content-Type: application/json" \
+        -d "{\"wake_channels\": \"$dm_channel\"}" > /dev/null 2>&1 || true
+    log_ok "Wake channels → $dm_channel"
+
     # Copy template files (TEAM.md + soul) into agent workspace
     if [[ -n "$TEMPLATE_DIR" ]]; then
         if [[ -f "$TEMPLATE_DIR/TEAM.md" ]]; then
