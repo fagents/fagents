@@ -143,6 +143,15 @@ if [[ -n "$TEMPLATE" ]]; then
     load_template "$TEMPLATE_DIR"
 fi
 
+# DM channel naming: whimsical for family, plain for business
+dm_channel_name() {
+    local lname="$(echo "$1" | tr '[:upper:]' '[:lower:]')"
+    case "${TEMPLATE:-}" in
+        family) echo "${lname}s-cove" ;;
+        *)      echo "$lname" ;;
+    esac
+}
+
 # ── Interactive mode ──
 prompt() {
     local var="$1" prompt_text="$2" default="$3"
@@ -456,7 +465,7 @@ for name in "${AGENT_NAMES[@]}"; do
             CHANNEL_ALLOW[$ch]+="$name "
         done
     fi
-    dm="$(echo "$name" | tr '[:upper:]' '[:lower:]')s-cove"
+    dm="$(dm_channel_name "$name")"
     CHANNEL_ALLOW[$dm]+="$name "
 done
 
@@ -470,12 +479,12 @@ for i in "${!HUMAN_NAMES[@]}"; do
     fi
     paired="${HUMAN_PAIRED_AGENTS[$i]:-}"
     if [[ -n "$paired" ]]; then
-        dm="$(echo "$paired" | tr '[:upper:]' '[:lower:]')s-cove"
+        dm="$(dm_channel_name "$paired")"
         CHANNEL_ALLOW[$dm]+="$human "
     else
         # No explicit pairing — add human to ALL agent coves
         for _agent in "${AGENT_NAMES[@]}"; do
-            dm="$(echo "$_agent" | tr '[:upper:]' '[:lower:]')s-cove"
+            dm="$(dm_channel_name "$_agent")"
             CHANNEL_ALLOW[$dm]+="$human "
         done
     fi
@@ -506,7 +515,7 @@ fi
 for name in "${AGENT_NAMES[@]}"; do
     token="${AGENT_TOKENS[$name]:-}"
     [[ -z "$token" ]] && continue
-    dm="$(echo "$name" | tr '[:upper:]' '[:lower:]')s-cove"
+    dm="$(dm_channel_name "$name")"
     tc="${AGENT_CHANNELS[$name]:-}"
     if [[ -n "$tc" && "$tc" != "null" ]]; then
         channels=$(echo "$tc" | jq -c ". + [\"$dm\"] | unique")
@@ -526,7 +535,7 @@ for i in "${!HUMAN_NAMES[@]}"; do
     paired="${HUMAN_PAIRED_AGENTS[$i]:-}"
     if [[ -n "$tc" && "$tc" != "null" ]]; then
         if [[ -n "$paired" ]]; then
-            dm="$(echo "$paired" | tr '[:upper:]' '[:lower:]')s-cove"
+            dm="$(dm_channel_name "$paired")"
             channels=$(echo "$tc" | jq -c ". + [\"$dm\"] | unique")
         else
             channels="$tc"
@@ -535,7 +544,7 @@ for i in "${!HUMAN_NAMES[@]}"; do
         # Fallback: general + all agent DMs (non-template flow)
         channels='["general"'
         for name in "${AGENT_NAMES[@]}"; do
-            channels+=",\"$(echo "$name" | tr '[:upper:]' '[:lower:]')s-cove\""
+            channels+=",\"$(dm_channel_name "$name")\""
         done
         channels+="]"
     fi
@@ -600,7 +609,7 @@ for name in "${AGENT_NAMES[@]}"; do
     fi
 
     # Set wake_channels based on agent role (DM cove + role-specific shared channels)
-    dm_channel="$(echo "$name" | tr '[:upper:]' '[:lower:]')s-cove"
+    dm_channel="$(dm_channel_name "$name")"
     wake_chs="$dm_channel"
     case "${AGENT_ROLES[$name]:-}" in
         parent) wake_chs="$dm_channel,parents-n-bots" ;;
