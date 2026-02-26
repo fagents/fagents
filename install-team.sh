@@ -472,6 +472,12 @@ for i in "${!HUMAN_NAMES[@]}"; do
     if [[ -n "$paired" ]]; then
         dm="$(echo "$paired" | tr '[:upper:]' '[:lower:]')s-cove"
         CHANNEL_ALLOW[$dm]+="$human "
+    else
+        # No explicit pairing — add human to ALL agent coves
+        for _agent in "${AGENT_NAMES[@]}"; do
+            dm="$(echo "$_agent" | tr '[:upper:]' '[:lower:]')s-cove"
+            CHANNEL_ALLOW[$dm]+="$human "
+        done
     fi
 done
 
