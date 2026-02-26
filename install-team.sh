@@ -593,13 +593,19 @@ for name in "${AGENT_NAMES[@]}"; do
         log_ok "Git remote → $REPOS_DIR/$ws.git"
     fi
 
-    # Set DM channel as default wake_channel (agent wakes on all DM msgs + mentions everywhere)
+    # Set wake_channels based on agent role (DM cove + role-specific shared channels)
     dm_channel="$(echo "$name" | tr '[:upper:]' '[:lower:]')s-cove"
+    wake_chs="$dm_channel"
+    case "${AGENT_ROLES[$name]:-}" in
+        parent) wake_chs="$dm_channel,parents-n-bots" ;;
+        kid)    wake_chs="$dm_channel,kids-n-bots" ;;
+        ops)    wake_chs="$dm_channel,general" ;;
+    esac
     curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$name/config" \
         -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
-        -d "{\"wake_channels\": \"$dm_channel\"}" > /dev/null 2>&1 || true
-    log_ok "Wake channels → $dm_channel"
+        -d "{\"wake_channels\": \"$wake_chs\"}" > /dev/null 2>&1 || true
+    log_ok "Wake channels → $wake_chs"
 
     # Copy template files (TEAM.md + soul) into agent workspace
     if [[ -n "$TEMPLATE_DIR" ]]; then
