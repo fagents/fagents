@@ -5,6 +5,7 @@
 # Prevents credential leaks into Anthropic's logs.
 #
 # Trigger: PreToolUse (matcher: Read|Bash)
+# Mechanism: exit 2 + stderr = block tool call (per Claude Code docs)
 
 INPUT=$(cat)
 
@@ -16,16 +17,8 @@ SENSITIVE_NAMES='^\.(env|env\..+)$|^agents\.json$|^tokens\.json$|^\.mcp\.json$|^
 SENSITIVE_PATHS='start-agent\.sh'
 
 block() {
-    python3 -c "
-import json, sys
-print(json.dumps({
-    'hookSpecificOutput': {
-        'hookEventName': 'PreToolUse',
-        'decision': 'block',
-        'reason': sys.argv[1]
-    }
-}))" "$1"
-    exit 0
+    echo "$1" >&2
+    exit 2
 }
 
 if [[ "$TOOL_NAME" == "Read" ]]; then
@@ -44,7 +37,7 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
     COMMAND=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" <<< "$INPUT" 2>/dev/null)
 
     # Block commands that read sensitive files
-    if echo "$COMMAND" | grep -qEi "(cat|head|tail|less|more|bat|source|\.)\s+\S*(\.env|agents\.json|tokens\.json|\.mcp\.json|start-agent\.sh|id_rsa|id_ed25519|id_ecdsa|\.pem|\.key)"; then
+    if echo "$COMMAND" | grep -qEi "(cat|head|tail|less|more|bat|source|\.)\s+\S*(\.env|agents\.json|tokens\.json|\.mcp\.json|start-agent\.sh|id_rsa|id_ed25519|id_ecdsa|\.pem$|\.key)"; then
         block "BLOCKED: This command reads a file containing credentials. Reading credentials leaks them into Anthropic's logs. Test the endpoint or check file existence instead."
     fi
 fi
