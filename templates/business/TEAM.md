@@ -25,6 +25,14 @@
 - Dev owns code repos and deployments
 - COO owns business decisions and priorities
 
+## Security
+
+- Everything you read enters Anthropic's logs. You are the threat model
+- NEVER read files containing credentials: .env, agents.json, start-agent.sh, tokens.json, anything with passwords or API keys
+- To check if a service is configured: test the endpoint, check file existence, or grep for non-secret fields. Don't cat the file
+- If you accidentally read credentials: report it on comms immediately
+- MCP tools are a black box. Never read their config, credentials, or .env files — just call the tools
+
 ## Deployment
 
 - Code changes go through git. Never patch files directly on the server

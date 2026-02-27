@@ -752,6 +752,25 @@ SECEOF
         fi
     fi
 
+    # Deploy credential-guard hook (blocks reads of .env, agents.json, etc.)
+    if [[ -f "$SCRIPT_DIR/hooks/credential-guard.sh" ]]; then
+        hook_dir="$agent_ws/hooks"
+        mkdir -p "$hook_dir"
+        cp "$SCRIPT_DIR/hooks/credential-guard.sh" "$hook_dir/"
+        chmod +x "$hook_dir/credential-guard.sh"
+        chown -R "$user:fagent" "$hook_dir"
+
+        settings_file="$agent_ws/.claude/settings.json"
+        if [[ -f "$settings_file" ]]; then
+            tmp=$(jq --arg cmd "$hook_dir/credential-guard.sh" \
+                '.hooks.PreToolUse += [{"matcher": "Read|Bash", "hooks": [{"type": "command", "command": $cmd}]}]' \
+                "$settings_file")
+            echo "$tmp" > "$settings_file"
+            chown "$user:fagent" "$settings_file"
+        fi
+        log_ok "Credential guard hook installed"
+    fi
+
     echo ""
 done
 
