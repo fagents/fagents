@@ -474,7 +474,7 @@ done
 chmod -R g+rwX "$REPOS_DIR"
 find "$REPOS_DIR" -type d -exec chmod g+s {} +
 for repo in "$REPOS_DIR"/*.git; do
-    git -C "$repo" config core.sharedRepository group
+    [[ -f "$repo/HEAD" ]] && git -C "$repo" config core.sharedRepository group
 done
 
 # Allow all users to work with repos owned by other users in the group
