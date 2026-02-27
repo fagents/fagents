@@ -436,14 +436,23 @@ COMMS_DIR="$INFRA_HOME/workspace/fagents-comms"
 if [[ -d "$COMMS_BARE" ]]; then
     log_ok "fagents-comms.git already at $COMMS_BARE"
 else
-    su - "$INFRA_USER" -c "git clone --bare '$COMMS_REPO' ~/repos/fagents-comms.git && git -C ~/repos/fagents-comms.git remote remove origin 2>/dev/null; true" 2>&1 | log_verbose
+    if su - "$INFRA_USER" -c "git clone --bare '$COMMS_REPO' ~/repos/fagents-comms.git" 2>&1 | log_verbose; then
+        su - "$INFRA_USER" -c "git -C ~/repos/fagents-comms.git remote remove origin" 2>/dev/null || true
+        log_ok "Cloned fagents-comms.git"
+    else
+        log_warn "Failed to clone fagents-comms — run with --verbose for details"
+    fi
 fi
-chmod -R g+rX "$COMMS_BARE"
+[[ -d "$COMMS_BARE" ]] && chmod -R g+rX "$COMMS_BARE"
 su - "$INFRA_USER" -c "mkdir -p ~/workspace"
 if [[ -d "$COMMS_DIR" ]]; then
     log_ok "fagents-comms working copy already at $COMMS_DIR"
 else
-    su - "$INFRA_USER" -c "git clone ~/repos/fagents-comms.git ~/workspace/fagents-comms" 2>&1 | log_verbose
+    if su - "$INFRA_USER" -c "git clone ~/repos/fagents-comms.git ~/workspace/fagents-comms" 2>&1 | log_verbose; then
+        log_ok "Cloned fagents-comms working copy"
+    else
+        log_warn "Failed to clone fagents-comms working copy"
+    fi
 fi
 
 # Clone fagents-autonomy as bare repo (shared, detached from GitHub)
@@ -451,12 +460,17 @@ SHARED_AUTONOMY="$INFRA_HOME/repos/fagents-autonomy.git"
 if [[ -d "$SHARED_AUTONOMY" ]]; then
     log_ok "fagents-autonomy already at $SHARED_AUTONOMY"
 else
-    su - "$INFRA_USER" -c "git clone --bare '$AUTONOMY_REPO' ~/repos/fagents-autonomy.git && git -C ~/repos/fagents-autonomy.git remote remove origin 2>/dev/null; true" 2>&1 | log_verbose
+    if su - "$INFRA_USER" -c "git clone --bare '$AUTONOMY_REPO' ~/repos/fagents-autonomy.git" 2>&1 | log_verbose; then
+        su - "$INFRA_USER" -c "git -C ~/repos/fagents-autonomy.git remote remove origin" 2>/dev/null || true
+        log_ok "Cloned fagents-autonomy.git"
+    else
+        log_warn "Failed to clone fagents-autonomy — run with --verbose for details"
+    fi
 fi
 # Make readable so agents can clone from it
-chmod -R g+rX "$SHARED_AUTONOMY"
-# Agents now clone from the local shared copy
-AUTONOMY_REPO="$SHARED_AUTONOMY"
+[[ -d "$SHARED_AUTONOMY" ]] && chmod -R g+rX "$SHARED_AUTONOMY"
+# Agents clone from local shared copy (fall back to GitHub if clone failed)
+[[ -d "$SHARED_AUTONOMY" ]] && AUTONOMY_REPO="$SHARED_AUTONOMY"
 
 # Create bare git repos for each agent
 for name in "${AGENT_NAMES[@]}"; do
@@ -478,7 +492,10 @@ for repo in "$REPOS_DIR"/*.git; do
 done
 
 # Allow all users to work with repos owned by other users in the group
-git config --system safe.directory '*'
+git config --system safe.directory '*' 2>/dev/null || {
+    # Fallback: write directly if git config --system fails (e.g. fresh installs)
+    echo -e "[safe]\n\tdirectory = *" >> /etc/gitconfig
+}
 echo ""
 
 # ── Step 3: Register agents + human (CLI — before server starts) ──
