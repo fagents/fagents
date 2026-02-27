@@ -40,6 +40,10 @@ EMAIL_PORT=""
 EMAIL_CONFIGURED=""
 EMAIL_AGENTS=()
 declare -A EMAIL_FROM
+declare -A EMAIL_SMTP_USER
+declare -A EMAIL_SMTP_PASS
+declare -A EMAIL_IMAP_USER
+declare -A EMAIL_IMAP_PASS
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTONOMY_REPO="https://github.com/fagents/fagents-autonomy.git"
@@ -323,25 +327,30 @@ if [[ "${enable_email,,}" =~ ^y ]]; then
 
     if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
         echo ""
-        echo "  From address for each agent:"
-        for name in "${EMAIL_AGENTS[@]}"; do
-            read -rp "    $name sends as: " from_addr
-            EMAIL_FROM[$name]="$from_addr"
-        done
-
-        echo ""
-        echo "  SMTP configuration (outgoing mail):"
+        echo "  Mail server (shared — same host for all agents):"
         prompt smtp_host "    SMTP host" ""
         prompt smtp_port "    SMTP port" "587"
-        prompt smtp_user "    SMTP user" ""
-        read -rsp "    SMTP password: " smtp_pass; echo ""
-
-        echo "  IMAP configuration (incoming mail):"
         prompt imap_host "    IMAP host" "$smtp_host"
         prompt imap_port "    IMAP port" "993"
-        prompt imap_user "    IMAP user" "$smtp_user"
-        read -rsp "    IMAP password (Enter = same as SMTP): " imap_pass; echo ""
-        [[ -z "$imap_pass" ]] && imap_pass="$smtp_pass"
+
+        echo ""
+        echo "  Per-agent credentials (each agent gets their own account):"
+        echo "  Note: passwords cannot contain ':'."
+        for name in "${EMAIL_AGENTS[@]}"; do
+            echo ""
+            echo "    $name:"
+            read -rp "      Sends as (from address): " from_addr
+            prompt _su "      SMTP user" ""
+            read -rsp "      SMTP password: " _sp; echo ""
+            prompt _iu "      IMAP user" "$_su"
+            read -rsp "      IMAP password (Enter = same as SMTP): " _ip; echo ""
+            [[ -z "$_ip" ]] && _ip="$_sp"
+            EMAIL_FROM[$name]="$from_addr"
+            EMAIL_SMTP_USER[$name]="$_su"
+            EMAIL_SMTP_PASS[$name]="$_sp"
+            EMAIL_IMAP_USER[$name]="$_iu"
+            EMAIL_IMAP_PASS[$name]="$_ip"
+        done
     fi
 fi
 
@@ -779,12 +788,16 @@ rm -f "$INSTALL_SCRIPT"
 if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
     log_step "Step 5b: Email setup"
 
-    # Build agent specs for install-email.sh
+    # Build agent specs for install-email.sh (per-agent credentials)
     email_agent_args=()
     for name in "${EMAIL_AGENTS[@]}"; do
         token="${AGENT_TOKENS[$name]:-}"
         from="${EMAIL_FROM[$name]:-}"
-        email_agent_args+=(--agent "$name:$token:$from")
+        su="${EMAIL_SMTP_USER[$name]:-}"
+        sp="${EMAIL_SMTP_PASS[$name]:-}"
+        iu="${EMAIL_IMAP_USER[$name]:-}"
+        ip="${EMAIL_IMAP_PASS[$name]:-}"
+        email_agent_args+=(--agent "$name:$token:$from:$su:$sp:$iu:$ip")
     done
 
     # Ensure Node.js is available (required for fagents-mcp)
@@ -802,12 +815,8 @@ if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
     # Run install-email.sh
     SMTP_HOST="$smtp_host" \
     SMTP_PORT="$smtp_port" \
-    SMTP_USER="$smtp_user" \
-    SMTP_PASS="$smtp_pass" \
     IMAP_HOST="$imap_host" \
     IMAP_PORT="$imap_port" \
-    IMAP_USER="$imap_user" \
-    IMAP_PASS="$imap_pass" \
     bash "$SCRIPT_DIR/install-email.sh" \
         --port "$EMAIL_PORT" \
         --dir "$INFRA_HOME/fagents-mcp" \

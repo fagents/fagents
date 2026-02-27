@@ -6,11 +6,13 @@
 #
 # Usage (called by install-team.sh):
 #   install-email.sh --port PORT --dir DIR --user USER \
-#     --agent "name:token:from" [--agent ...]
+#     --agent "name:token:from:smtp_user:smtp_pass:imap_user:imap_pass" [--agent ...]
 #
-# SMTP/IMAP config via environment variables:
-#   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
-#   IMAP_HOST, IMAP_PORT, IMAP_USER, IMAP_PASS
+# SMTP/IMAP host/port via environment variables (shared across agents):
+#   SMTP_HOST, SMTP_PORT, IMAP_HOST, IMAP_PORT
+#
+# Credentials are per-agent (in --agent spec). Passwords cannot contain ':'.
+# SMTP_FROM, SMTP_USER, SMTP_PASS, IMAP_USER, IMAP_PASS are per-agent.
 #
 # Prerequisites: node (>= 18), npm, git
 
@@ -38,11 +40,7 @@ done
 [[ -z "$SERVICE_USER" ]]  && { echo "ERROR: --user required" >&2; exit 1; }
 [[ ${#AGENT_SPECS[@]} -eq 0 ]] && { echo "ERROR: at least one --agent required" >&2; exit 1; }
 [[ -z "${SMTP_HOST:-}" ]] && { echo "ERROR: SMTP_HOST not set" >&2; exit 1; }
-[[ -z "${SMTP_USER:-}" ]] && { echo "ERROR: SMTP_USER not set" >&2; exit 1; }
-[[ -z "${SMTP_PASS:-}" ]] && { echo "ERROR: SMTP_PASS not set" >&2; exit 1; }
 [[ -z "${IMAP_HOST:-}" ]] && { echo "ERROR: IMAP_HOST not set" >&2; exit 1; }
-[[ -z "${IMAP_USER:-}" ]] && { echo "ERROR: IMAP_USER not set" >&2; exit 1; }
-[[ -z "${IMAP_PASS:-}" ]] && { echo "ERROR: IMAP_PASS not set" >&2; exit 1; }
 
 # Check for node
 if ! command -v node &>/dev/null; then
@@ -81,38 +79,40 @@ chown "$SERVICE_USER" "$INSTALL_DIR/.env"
 chmod 600 "$INSTALL_DIR/.env"
 
 # ── Generate agents.json ──
-# Build JSON with jq: shared SMTP/IMAP config + per-agent apiKey + SMTP_FROM
+# Each agent gets its own credentials. Host/port are shared (non-secret).
+# Spec format: name:token:from:smtp_user:smtp_pass:imap_user:imap_pass
+# Note: ':' in passwords is not supported.
 agents_obj='{}'
 for spec in "${AGENT_SPECS[@]}"; do
-    IFS=':' read -r name token from_addr <<< "$spec"
+    IFS=':' read -r name token from_addr smtp_user smtp_pass imap_user imap_pass <<< "$spec"
+    [[ -z "$smtp_user" ]] && { echo "ERROR: no smtp_user for agent '$name'" >&2; exit 1; }
+    [[ -z "$smtp_pass" ]] && { echo "ERROR: no smtp_pass for agent '$name'" >&2; exit 1; }
+    [[ -z "$imap_user" ]] && { echo "ERROR: no imap_user for agent '$name'" >&2; exit 1; }
+    [[ -z "$imap_pass" ]] && { echo "ERROR: no imap_pass for agent '$name'" >&2; exit 1; }
     agents_obj=$(echo "$agents_obj" | jq \
         --arg name "$name" \
         --arg token "$token" \
         --arg from "$from_addr" \
-        '.[$name] = {"apiKey": $token, "SMTP_FROM": $from}')
+        --arg su "$smtp_user" \
+        --arg sp "$smtp_pass" \
+        --arg iu "$imap_user" \
+        --arg ip "$imap_pass" \
+        '.[$name] = {"apiKey": $token, "SMTP_FROM": $from, "SMTP_USER": $su, "SMTP_PASS": $sp, "IMAP_USER": $iu, "IMAP_PASS": $ip}')
 done
 
 jq -n \
     --argjson agents "$agents_obj" \
     --arg smtp_host "$SMTP_HOST" \
     --arg smtp_port "${SMTP_PORT:-587}" \
-    --arg smtp_user "$SMTP_USER" \
-    --arg smtp_pass "$SMTP_PASS" \
     --arg imap_host "$IMAP_HOST" \
     --arg imap_port "${IMAP_PORT:-993}" \
-    --arg imap_user "$IMAP_USER" \
-    --arg imap_pass "$IMAP_PASS" \
     '{
         agents: $agents,
         shared: {
             SMTP_HOST: $smtp_host,
             SMTP_PORT: $smtp_port,
-            SMTP_USER: $smtp_user,
-            SMTP_PASS: $smtp_pass,
             IMAP_HOST: $imap_host,
-            IMAP_PORT: $imap_port,
-            IMAP_USER: $imap_user,
-            IMAP_PASS: $imap_pass
+            IMAP_PORT: $imap_port
         }
     }' > "$INSTALL_DIR/agents.json"
 
