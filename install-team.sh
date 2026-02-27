@@ -777,6 +777,18 @@ if [[ "${enable_email,,}" =~ ^y ]]; then
             agent_ws="$agent_home/workspace/$ws"
             token="${AGENT_TOKENS[$name]:-}"
             add_mcp_server "$agent_ws" "$user" "fagents-mcp" "http://127.0.0.1:$EMAIL_PORT/mcp" "$token"
+
+            # Add email tool instructions to MEMORY.md
+            from_addr="${EMAIL_FROM[$name]:-}"
+            cat >> "$agent_ws/memory/MEMORY.md" <<EMAILEOF
+
+## Email Tools
+- You have email via MCP (fagents-mcp). Tools: send_email, read_email, list_emails, search_emails, list_mailboxes, download_attachment
+- Your sending address: ${from_addr}
+- Do NOT try to configure email yourself — it is already set up. Just call the tools directly
+- Do NOT use Bash to search for MCP config, API keys, or ports — the tools are available in your tool list automatically
+EMAILEOF
+            chown "$user:fagent" "$agent_ws/memory/MEMORY.md"
             log_ok "$name: email configured"
         done
         EMAIL_CONFIGURED=1
