@@ -24,3 +24,11 @@
 - Ops owns sudo and infra changes
 - Dev owns code repos and deployments
 - COO owns business decisions and priorities
+
+## Deployment
+
+- Code changes go through git. Never patch files directly on the server
+- Dev: fix locally, test, commit, push to shared repo. Then ask Ops to deploy
+- Ops: pull from git, build, restart service. Never apply code changes without pulling from the repo
+- Shared repos live in /home/fagents/ (owned by fagents user). Agents have read access via group permissions
+- After deploy: verify the service is healthy before reporting done

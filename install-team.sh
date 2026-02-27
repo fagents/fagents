@@ -645,6 +645,14 @@ for name in "${AGENT_NAMES[@]}"; do
                 chown "$user:fagent" "$agent_ws/TEAM.md"
                 log_ok "Copied TEAM.md (no marker found)"
             fi
+            # Substitute default role names with actual agent names
+            team_file=$(readlink -f "$agent_ws/TEAM.md" 2>/dev/null || echo "$agent_ws/TEAM.md")
+            for aname in "${AGENTS[@]}"; do
+                arole="${AGENT_ROLES[$aname]:-}"
+                if [[ -n "$arole" && "$arole" != "$aname" ]]; then
+                    sed -i "s/\\b${arole}\\b/${aname}/g" "$team_file"
+                fi
+            done
         fi
         soul_file="${AGENT_SOULS[$name]:-}"
         if [[ -n "$soul_file" && -f "$TEMPLATE_DIR/souls/$soul_file" ]]; then
