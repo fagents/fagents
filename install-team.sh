@@ -36,6 +36,10 @@ AGENTS=()
 HUMAN_NAMES=()
 INFRA_USER="fagents"
 HARDENING_DONE=""
+EMAIL_PORT=""
+EMAIL_CONFIGURED=""
+EMAIL_AGENTS=()
+declare -A EMAIL_FROM
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTONOMY_REPO="https://github.com/fagents/fagents-autonomy.git"
@@ -292,12 +296,67 @@ if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
     read -rp "Claude OAuth token (or Enter to skip): " CLAUDE_TOKEN
 fi
 
+# ── Email config (collected upfront, installed in Step 5b) ──
+EMAIL_PORT=$((COMMS_PORT + 1))
+echo ""
+read -rp "Enable email for agents? [y/N]: " enable_email
+if [[ "${enable_email,,}" =~ ^y ]]; then
+    echo ""
+    echo "  Which agents should have email?"
+    for i in "${!AGENTS[@]}"; do
+        echo "    $((i+1)). ${AGENTS[$i]}"
+    done
+    echo "    a. All agents"
+    echo ""
+    read -rp "  Select (numbers separated by spaces, or 'a' for all): " email_selection
+
+    if [[ "$email_selection" == "a" ]]; then
+        EMAIL_AGENTS=("${AGENTS[@]}")
+    else
+        for num in $email_selection; do
+            idx=$((num - 1))
+            if [[ $idx -ge 0 && $idx -lt ${#AGENTS[@]} ]]; then
+                EMAIL_AGENTS+=("${AGENTS[$idx]}")
+            fi
+        done
+    fi
+
+    if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
+        echo ""
+        echo "  From address for each agent:"
+        for name in "${EMAIL_AGENTS[@]}"; do
+            read -rp "    $name sends as: " from_addr
+            EMAIL_FROM[$name]="$from_addr"
+        done
+
+        echo ""
+        echo "  SMTP configuration (outgoing mail):"
+        prompt smtp_host "    SMTP host" ""
+        prompt smtp_port "    SMTP port" "587"
+        prompt smtp_user "    SMTP user" ""
+        read -rsp "    SMTP password: " smtp_pass; echo ""
+
+        echo "  IMAP configuration (incoming mail):"
+        prompt imap_host "    IMAP host" "$smtp_host"
+        prompt imap_port "    IMAP port" "993"
+        prompt imap_user "    IMAP user" "$smtp_user"
+        read -rsp "    IMAP password (Enter = same as SMTP): " imap_pass; echo ""
+        [[ -z "$imap_pass" ]] && imap_pass="$smtp_pass"
+    fi
+fi
+
 echo ""
 echo "  Infra user:  $INFRA_USER (owns comms + git repos)"
 echo "  Agents:      ${AGENTS[*]}"
 echo "  Humans:      ${HUMAN_NAMES[*]}"
 echo "  Comms:       127.0.0.1:$COMMS_PORT"
 [[ -n "$CLAUDE_TOKEN" ]] && echo "  Claude auth: provided" || echo "  Claude auth: skip (set up manually later)"
+if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
+    echo "  Email:       enabled (${EMAIL_AGENTS[*]})"
+    echo "  SMTP:        ${smtp_host:-}:${smtp_port:-587}"
+else
+    echo "  Email:       disabled"
+fi
 
 # Warn about sudo agents
 for name in "${AGENTS[@]}"; do
@@ -698,97 +757,45 @@ done
 
 rm -f "$INSTALL_SCRIPT"
 
-# ── Step 5b: Email MCP setup (optional) ──
-EMAIL_PORT=$((COMMS_PORT + 1))
-EMAIL_CONFIGURED=""
-declare -A EMAIL_FROM
-
-echo ""
-read -rp "Enable email for agents? [y/N]: " enable_email
-if [[ "${enable_email,,}" =~ ^y ]]; then
+# ── Step 5b: Email MCP setup (non-interactive — config collected upfront) ──
+if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
     log_step "Step 5b: Email setup"
 
-    # Which agents get email?
-    echo ""
-    echo "  Which agents should have email?"
-    for i in "${!AGENT_NAMES[@]}"; do
-        echo "    $((i+1)). ${AGENT_NAMES[$i]}"
+    # Build agent specs for install-email.sh
+    email_agent_args=()
+    for name in "${EMAIL_AGENTS[@]}"; do
+        token="${AGENT_TOKENS[$name]:-}"
+        from="${EMAIL_FROM[$name]:-}"
+        email_agent_args+=(--agent "$name:$token:$from")
     done
-    echo "    a. All agents"
-    echo ""
-    read -rp "  Select (numbers separated by spaces, or 'a' for all): " email_selection
 
-    EMAIL_AGENTS=()
-    if [[ "$email_selection" == "a" ]]; then
-        EMAIL_AGENTS=("${AGENT_NAMES[@]}")
-    else
-        for num in $email_selection; do
-            idx=$((num - 1))
-            if [[ $idx -ge 0 && $idx -lt ${#AGENT_NAMES[@]} ]]; then
-                EMAIL_AGENTS+=("${AGENT_NAMES[$idx]}")
-            fi
-        done
-    fi
+    # Run install-email.sh
+    SMTP_HOST="$smtp_host" \
+    SMTP_PORT="$smtp_port" \
+    SMTP_USER="$smtp_user" \
+    SMTP_PASS="$smtp_pass" \
+    IMAP_HOST="$imap_host" \
+    IMAP_PORT="$imap_port" \
+    IMAP_USER="$imap_user" \
+    IMAP_PASS="$imap_pass" \
+    bash "$SCRIPT_DIR/install-email.sh" \
+        --port "$EMAIL_PORT" \
+        --dir "$INFRA_HOME/fagents-mcp" \
+        --user "$INFRA_USER" \
+        "${email_agent_args[@]}"
 
-    if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
-        # Per-agent SMTP_FROM
-        echo ""
-        echo "  From address for each agent:"
-        for name in "${EMAIL_AGENTS[@]}"; do
-            read -rp "    $name sends as: " from_addr
-            EMAIL_FROM[$name]="$from_addr"
-        done
+    # Add fagents-mcp to each email agent's .mcp.json
+    for name in "${EMAIL_AGENTS[@]}"; do
+        user=$(agent_user "$name")
+        ws="${AGENT_WORKSPACES[$name]}"
+        agent_home=$(eval echo "~$user")
+        agent_ws="$agent_home/workspace/$ws"
+        token="${AGENT_TOKENS[$name]:-}"
+        add_mcp_server "$agent_ws" "$user" "fagents-mcp" "http://127.0.0.1:$EMAIL_PORT/mcp" "$token"
 
-        # Shared SMTP/IMAP config
-        echo ""
-        echo "  SMTP configuration (outgoing mail):"
-        prompt smtp_host "    SMTP host" ""
-        prompt smtp_port "    SMTP port" "587"
-        prompt smtp_user "    SMTP user" ""
-        read -rsp "    SMTP password: " smtp_pass; echo ""
-
-        echo "  IMAP configuration (incoming mail):"
-        prompt imap_host "    IMAP host" "$smtp_host"
-        prompt imap_port "    IMAP port" "993"
-        prompt imap_user "    IMAP user" "$smtp_user"
-        read -rsp "    IMAP password (Enter = same as SMTP): " imap_pass; echo ""
-        [[ -z "$imap_pass" ]] && imap_pass="$smtp_pass"
-
-        # Build agent specs for install-email.sh
-        email_agent_args=()
-        for name in "${EMAIL_AGENTS[@]}"; do
-            token="${AGENT_TOKENS[$name]:-}"
-            from="${EMAIL_FROM[$name]:-}"
-            email_agent_args+=(--agent "$name:$token:$from")
-        done
-
-        # Run install-email.sh
-        SMTP_HOST="$smtp_host" \
-        SMTP_PORT="$smtp_port" \
-        SMTP_USER="$smtp_user" \
-        SMTP_PASS="$smtp_pass" \
-        IMAP_HOST="$imap_host" \
-        IMAP_PORT="$imap_port" \
-        IMAP_USER="$imap_user" \
-        IMAP_PASS="$imap_pass" \
-        bash "$SCRIPT_DIR/install-email.sh" \
-            --port "$EMAIL_PORT" \
-            --dir "$INFRA_HOME/fagents-mcp" \
-            --user "$INFRA_USER" \
-            "${email_agent_args[@]}"
-
-        # Add fagents-mcp to each email agent's .mcp.json
-        for name in "${EMAIL_AGENTS[@]}"; do
-            user=$(agent_user "$name")
-            ws="${AGENT_WORKSPACES[$name]}"
-            agent_home=$(eval echo "~$user")
-            agent_ws="$agent_home/workspace/$ws"
-            token="${AGENT_TOKENS[$name]:-}"
-            add_mcp_server "$agent_ws" "$user" "fagents-mcp" "http://127.0.0.1:$EMAIL_PORT/mcp" "$token"
-
-            # Add email tool instructions to MEMORY.md
-            from_addr="${EMAIL_FROM[$name]:-}"
-            cat >> "$agent_ws/memory/MEMORY.md" <<EMAILEOF
+        # Add email tool instructions to MEMORY.md
+        from_addr="${EMAIL_FROM[$name]:-}"
+        cat >> "$agent_ws/memory/MEMORY.md" <<EMAILEOF
 
 ## Email Tools
 - You have email via MCP (fagents-mcp). Tools: send_email, read_email, list_emails, search_emails, list_mailboxes, download_attachment
@@ -796,11 +803,10 @@ if [[ "${enable_email,,}" =~ ^y ]]; then
 - Do NOT try to configure email yourself — it is already set up. Just call the tools directly
 - Do NOT use Bash to search for MCP config, API keys, or ports — the tools are available in your tool list automatically
 EMAILEOF
-            chown "$user:fagent" "$agent_ws/memory/MEMORY.md"
-            log_ok "$name: email configured"
-        done
-        EMAIL_CONFIGURED=1
-    fi
+        chown "$user:fagent" "$agent_ws/memory/MEMORY.md"
+        log_ok "$name: email configured"
+    done
+    EMAIL_CONFIGURED=1
 fi
 
 # ── Step 6: Claude Code setup ──
