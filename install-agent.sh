@@ -185,21 +185,11 @@ if [[ ! -f .claude/settings.json ]]; then
   "enableAllProjectMcpServers": true,
   "permissions": {
     "deny": [
-      "Read(**/.env)", "Read(**/.env.*)",
-      "Read(**/agents.json)", "Read(**/tokens.json)", "Read(**/.mcp.json)",
-      "Read(**/start-agent.sh)",
-      "Read(**/id_rsa)", "Read(**/id_ed25519)", "Read(**/id_ecdsa)",
-      "Read(**/*.pem)", "Read(**/*.key)",
-      "Bash(cat *.env)", "Bash(cat *.env.*)",
-      "Bash(cat *agents.json)", "Bash(cat *tokens.json)", "Bash(cat *.mcp.json)",
-      "Bash(cat *start-agent.sh)",
-      "Bash(cat *id_rsa*)", "Bash(cat *id_ed25519*)", "Bash(cat *id_ecdsa*)",
-      "Bash(cat *.pem)", "Bash(cat *.key)",
-      "Bash(head *.env*)", "Bash(head *agents.json)", "Bash(head *.mcp.json)",
-      "Bash(tail *.env*)", "Bash(tail *agents.json)", "Bash(tail *.mcp.json)",
-      "Bash(less *.env*)", "Bash(less *agents.json)", "Bash(less *.mcp.json)",
-      "Bash(more *.env*)", "Bash(more *agents.json)", "Bash(more *.mcp.json)",
-      "Bash(source *.env*)", "Bash(. *.env*)"
+      "Read(./.env)", "Read(./.env.*)", "Read(./.mcp.json)",
+      "Read(./start-agent.sh)",
+      "Read(~/.ssh/id_*)",
+      "Bash(cat .env)", "Bash(cat .env.*)",
+      "Bash(cat .mcp.json)", "Bash(cat start-agent.sh)"
     ]
   },
   "hooks": {
