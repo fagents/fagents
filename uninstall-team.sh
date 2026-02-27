@@ -1,9 +1,11 @@
 #!/bin/bash
 # uninstall-team.sh — Remove a team installed by install-team.sh
-# Usage: sudo ./uninstall-team.sh [--infra USERNAME]
+#
+# Usage: sudo ./uninstall-team.sh [--yes]
 #
 # Auto-detects team members from the 'fagent' group.
 # Kills all running processes, removes users + home dirs, cleans up.
+# Pass --yes to skip confirmation prompt.
 
 set -euo pipefail
 
@@ -12,66 +14,99 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-INFRA_USER="${INFRA_USER:-fagents}"
+INFRA_USER="fagents"
+GROUP="fagent"
+AUTO_YES=""
 
-# ── Parse args ──
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --infra) INFRA_USER="$2"; shift 2 ;;
+        --yes|-y) AUTO_YES=1; shift ;;
+        --help|-h)
+            sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
+            exit 0
+            ;;
         *) echo "Unknown arg: $1" >&2; exit 1 ;;
     esac
 done
 
 # ── Find team members ──
-if ! getent group fagent &>/dev/null; then
-    echo "No 'fagent' group found — nothing to uninstall."
+if ! getent group "$GROUP" &>/dev/null; then
+    echo "No '$GROUP' group found — nothing to uninstall."
     exit 0
 fi
 
-# Get all users in the fagent group (primary group)
 TEAM_USERS=()
-while IFS=: read -r user _ uid gid _; do
-    fagent_gid=$(getent group fagent | cut -d: -f3)
+fagent_gid=$(getent group "$GROUP" | cut -d: -f3)
+while IFS=: read -r user _ _ gid _; do
     if [[ "$gid" == "$fagent_gid" ]]; then
         TEAM_USERS+=("$user")
     fi
 done < /etc/passwd
 
 if [[ ${#TEAM_USERS[@]} -eq 0 ]]; then
-    echo "No users in 'fagent' group — nothing to uninstall."
+    echo "No users in '$GROUP' group — nothing to uninstall."
     exit 0
 fi
 
-echo "=== Freeturtle Team Uninstall ==="
+# Split into infra and agents
+AGENT_USERS=()
+for user in "${TEAM_USERS[@]}"; do
+    [[ "$user" != "$INFRA_USER" ]] && AGENT_USERS+=("$user")
+done
+
 echo ""
-echo "  Infra user: $INFRA_USER"
-echo "  Team users: ${TEAM_USERS[*]}"
+echo "  fagents — uninstaller"
 echo ""
-read -rp "Remove all these users and their data? [y/N] " confirm
-if [[ "${confirm,,}" != "y" ]]; then
-    echo "Aborted."
-    exit 0
+echo "  Will remove:"
+echo "    Infra user: $INFRA_USER"
+if [[ ${#AGENT_USERS[@]} -gt 0 ]]; then
+    echo "    Agents:     ${AGENT_USERS[*]}"
+fi
+echo "    Group:      $GROUP"
+echo "    All home directories, repos, workspaces, and data"
+echo ""
+
+if [[ -z "$AUTO_YES" ]]; then
+    read -rp "  Continue? [y/N] " confirm
+    if [[ ! "${confirm,,}" =~ ^y ]]; then
+        echo "  Aborted."
+        exit 0
+    fi
 fi
 
 echo ""
 
-# ── Step 1: Stop all processes ──
+# ── Step 1: Stop processes ──
 echo "=== Step 1: Stop processes ==="
-# Stop comms server (runs under infra user)
+
+# Stop fagents-mcp systemd service
+if systemctl is-active --quiet fagents-mcp 2>/dev/null; then
+    systemctl stop fagents-mcp
+    echo "  Stopped fagents-mcp service"
+fi
+if systemctl is-enabled --quiet fagents-mcp 2>/dev/null; then
+    systemctl disable fagents-mcp 2>/dev/null || true
+fi
+if [[ -f /etc/systemd/system/fagents-mcp.service ]]; then
+    rm -f /etc/systemd/system/fagents-mcp.service
+    systemctl daemon-reload 2>/dev/null || true
+    echo "  Removed fagents-mcp service"
+fi
+
+# Stop comms server + infra processes
 if id "$INFRA_USER" &>/dev/null; then
-    procs=$(pgrep -u "$INFRA_USER" 2>/dev/null || true)
-    if [[ -n "$procs" ]]; then
-        echo "  Stopping comms server ($INFRA_USER)..."
+    if pgrep -u "$INFRA_USER" &>/dev/null; then
+        echo "  Stopping $INFRA_USER processes..."
         pkill -u "$INFRA_USER" 2>/dev/null || true
         sleep 1
         pkill -9 -u "$INFRA_USER" 2>/dev/null || true
     fi
 fi
+
 # Stop agent daemons
-for user in "${TEAM_USERS[@]}"; do
-    procs=$(pgrep -u "$user" 2>/dev/null || true)
-    if [[ -n "$procs" ]]; then
-        echo "  Killing processes for $user..."
+for user in "${AGENT_USERS[@]}"; do
+    if pgrep -u "$user" &>/dev/null; then
+        echo "  Stopping $user processes..."
         pkill -u "$user" 2>/dev/null || true
         sleep 1
         pkill -9 -u "$user" 2>/dev/null || true
@@ -82,25 +117,31 @@ echo ""
 
 # ── Step 2: Remove users ──
 echo "=== Step 2: Remove users ==="
-for user in "${TEAM_USERS[@]}"; do
+for user in "${AGENT_USERS[@]}"; do
     if id "$user" &>/dev/null; then
+        rm -f "/etc/sudoers.d/$user"
         userdel -r "$user" 2>/dev/null && echo "  Removed $user" || echo "  WARNING: could not fully remove $user"
     fi
-    # Clean up sudoers
-    rm -f "/etc/sudoers.d/$user"
 done
+if id "$INFRA_USER" &>/dev/null; then
+    userdel -r "$INFRA_USER" 2>/dev/null && echo "  Removed $INFRA_USER" || echo "  WARNING: could not fully remove $INFRA_USER"
+fi
 echo ""
 
 # ── Step 3: Remove group ──
-echo "=== Step 3: Remove group ==="
-groupdel fagent 2>/dev/null && echo "  Removed fagent group" || echo "  Group already gone"
-echo ""
+echo "=== Step 3: Clean up ==="
+groupdel "$GROUP" 2>/dev/null && echo "  Removed $GROUP group" || echo "  Group already gone"
 
-# ── Step 4: Clean up artifacts ──
-echo "=== Step 4: Clean up ==="
-rm -f /tmp/fagents-install-agent.sh
-echo "  Cleaned /tmp artifacts"
+# Clean /etc/gitconfig safe.directory
+if [[ -f /etc/gitconfig ]] && grep -q 'directory = \*' /etc/gitconfig 2>/dev/null; then
+    sed -i '/^\[safe\]$/d; /directory = \*/d' /etc/gitconfig 2>/dev/null || true
+    [[ ! -s /etc/gitconfig ]] && rm -f /etc/gitconfig
+    echo "  Cleaned /etc/gitconfig"
+fi
 echo ""
 
 echo "=== Uninstall complete ==="
-echo "Users removed: ${TEAM_USERS[*]}"
+echo ""
+echo "  To reinstall:"
+echo "  curl -fsSL https://raw.githubusercontent.com/fagents/fagents/main/install.sh | sudo bash"
+echo ""
