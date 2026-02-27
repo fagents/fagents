@@ -11,7 +11,7 @@ INPUT=$(cat)
 TOOL_NAME=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_name',''))" <<< "$INPUT" 2>/dev/null)
 
 # Sensitive filename patterns (basename match)
-SENSITIVE_NAMES='^\.(env|env\..+)$|^agents\.json$|^tokens\.json$|^\.mcp\.json$'
+SENSITIVE_NAMES='^\.(env|env\..+)$|^agents\.json$|^tokens\.json$|^\.mcp\.json$|^id_rsa|^id_ed25519$|^id_ecdsa$|\.pem$|\.key$'
 # Sensitive path patterns (full path match)
 SENSITIVE_PATHS='start-agent\.sh'
 
@@ -44,7 +44,7 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
     COMMAND=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" <<< "$INPUT" 2>/dev/null)
 
     # Block commands that read sensitive files
-    if echo "$COMMAND" | grep -qEi "(cat|head|tail|less|more|bat|source|\.)\s+\S*(\.env|agents\.json|tokens\.json|\.mcp\.json|start-agent\.sh)"; then
+    if echo "$COMMAND" | grep -qEi "(cat|head|tail|less|more|bat|source|\.)\s+\S*(\.env|agents\.json|tokens\.json|\.mcp\.json|start-agent\.sh|id_rsa|id_ed25519|id_ecdsa|\.pem|\.key)"; then
         block "BLOCKED: This command reads a file containing credentials. Reading credentials leaks them into Anthropic's logs. Test the endpoint or check file existence instead."
     fi
 fi
