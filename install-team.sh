@@ -488,14 +488,15 @@ done
 chmod -R g+rwX "$REPOS_DIR"
 find "$REPOS_DIR" -type d -exec chmod g+s {} +
 for repo in "$REPOS_DIR"/*.git; do
-    [[ -f "$repo/HEAD" ]] && git -C "$repo" config core.sharedRepository group
+    [[ -f "$repo/HEAD" ]] && git -C "$repo" config core.sharedRepository group 2>/dev/null || true
 done
 
 # Allow all users to work with repos owned by other users in the group
-git config --system safe.directory '*' 2>/dev/null || {
-    # Fallback: write directly if git config --system fails (e.g. fresh installs)
-    echo -e "[safe]\n\tdirectory = *" >> /etc/gitconfig
-}
+if ! git config --system safe.directory '*' >/dev/null 2>&1; then
+    # Fallback: write directly if git config --system fails
+    mkdir -p /etc
+    printf '[safe]\n\tdirectory = *\n' >> /etc/gitconfig
+fi
 echo ""
 
 # ── Step 3: Register agents + human (CLI — before server starts) ──
