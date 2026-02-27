@@ -787,6 +787,18 @@ if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
         email_agent_args+=(--agent "$name:$token:$from")
     done
 
+    # Ensure Node.js is available (required for fagents-mcp)
+    if ! command -v node &>/dev/null; then
+        echo "  Installing Node.js..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x 2>/dev/null | bash - 2>&1 | log_verbose
+        apt-get install -y nodejs 2>&1 | log_verbose
+        if command -v node &>/dev/null; then
+            log_ok "Installed Node.js $(node --version)"
+        else
+            log_warn "Failed to install Node.js — email setup will fail"
+        fi
+    fi
+
     # Run install-email.sh
     SMTP_HOST="$smtp_host" \
     SMTP_PORT="$smtp_port" \
