@@ -832,22 +832,6 @@ if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
         token="${AGENT_TOKENS[$name]:-}"
         add_mcp_server "$agent_ws" "$user" "fagents-mcp" "http://127.0.0.1:$EMAIL_PORT/mcp" "$token"
 
-        # Write IMAP creds for awareness scripts (imap-poll.sh sources this)
-        # Stored in workspace_root/.autonomy/ — same dir as awareness state files
-        WORKSPACE_ROOT="$agent_home/workspace"
-        AUTONOMY_STATE="$WORKSPACE_ROOT/.autonomy"
-        mkdir -p "$AUTONOMY_STATE"
-        chown "$user:fagent" "$AUTONOMY_STATE"
-        cat > "$AUTONOMY_STATE/imap-env" << IMAPEOF
-export IMAP_HOST="${imap_host}"
-export IMAP_PORT="${imap_port:-993}"
-export IMAP_USER="${EMAIL_IMAP_USER[$name]}"
-export IMAP_PASS="${EMAIL_IMAP_PASS[$name]}"
-export COMMS_TOKEN="${AGENT_TOKENS[$name]}"
-IMAPEOF
-        chown "$user:fagent" "$AUTONOMY_STATE/imap-env"
-        chmod 600 "$AUTONOMY_STATE/imap-env"
-
         # Add email tool instructions to MEMORY.md
         from_addr="${EMAIL_FROM[$name]:-}"
         cat >> "$agent_ws/memory/MEMORY.md" <<EMAILEOF
