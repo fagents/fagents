@@ -67,13 +67,16 @@ if [[ -z "${NONINTERACTIVE:-}" ]]; then
 fi
 
 WORKSPACE_DIR="$HOME/workspace/$WORKSPACE"
-AUTONOMY_DIR="$HOME/workspace/fagents-autonomy"
+AUTONOMY_DIR="${AUTONOMY_DIR:-$HOME/workspace/fagents-autonomy}"
 CLAUDE_PROJECT_DIR="$HOME/.claude/projects/-home-$(whoami)-workspace-${WORKSPACE}"
 
 # ── Step 1: Clone fagents-autonomy if not present ──
 echo ""
 echo "=== Step 1: fagents-autonomy ==="
-if [[ -d "$AUTONOMY_DIR" ]]; then
+if [[ "${AUTONOMY_SHARED:-}" == "1" ]]; then
+    echo "  Using shared autonomy clone at $AUTONOMY_DIR (managed by infra user)"
+    git config --global --add safe.directory "$AUTONOMY_DIR"
+elif [[ -d "$AUTONOMY_DIR" ]]; then
     echo "  Already exists at $AUTONOMY_DIR — pulling latest..."
     git -C "$AUTONOMY_DIR" pull --quiet 2>/dev/null || echo "  (pull failed, using existing)"
 else

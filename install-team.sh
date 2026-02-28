@@ -481,6 +481,39 @@ fi
 # Agents clone from local shared copy (fall back to GitHub if clone failed)
 [[ -d "$SHARED_AUTONOMY" ]] && AUTONOMY_REPO="$SHARED_AUTONOMY"
 
+# Stage B: Create shared autonomy working clone from bare
+SHARED_AUTONOMY_WORKING="$INFRA_HOME/workspace/fagents-autonomy"
+if [[ -d "$SHARED_AUTONOMY_WORKING" ]]; then
+    log_ok "Shared autonomy working clone already at $SHARED_AUTONOMY_WORKING"
+elif [[ -d "$SHARED_AUTONOMY" ]]; then
+    if su - "$INFRA_USER" -c "git clone '$SHARED_AUTONOMY' ~/workspace/fagents-autonomy" 2>&1 | log_verbose; then
+        chmod -R g+rX "$SHARED_AUTONOMY_WORKING"
+        log_ok "Created shared autonomy working clone at $SHARED_AUTONOMY_WORKING"
+    else
+        log_warn "Failed to create shared autonomy working clone"
+    fi
+fi
+
+# Stage C: Generate TEAM.md from agent config and commit (local only, never reaches GitHub)
+if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && grep -q "<!-- TEAM_ROLES -->" "$SHARED_AUTONOMY_WORKING/TEAM.md" 2>/dev/null; then
+    ROLES_BLOCK=""
+    for name in "${AGENT_NAMES[@]}"; do
+        role="${AGENT_ROLES[$name]:-agent}"
+        ROLES_BLOCK+="- **$name** ($role)"$'\n'
+    done
+    # Write TEAM.md with placeholder replaced
+    TEAM_CONTENT=$(sed "s|<!-- TEAM_ROLES -->|${ROLES_BLOCK}|" "$SHARED_AUTONOMY_WORKING/TEAM.md")
+    sudo -u "$INFRA_USER" bash -c "cat > '$SHARED_AUTONOMY_WORKING/TEAM.md'" <<< "$TEAM_CONTENT"
+    sudo -u "$INFRA_USER" git -C "$SHARED_AUTONOMY_WORKING" \
+        -c user.name='installer' -c user.email='installer@local' \
+        add TEAM.md
+    sudo -u "$INFRA_USER" git -C "$SHARED_AUTONOMY_WORKING" \
+        -c user.name='installer' -c user.email='installer@local' \
+        commit -m "TEAM.md: generated from install config" 2>/dev/null || true
+    sudo -u "$INFRA_USER" git -C "$SHARED_AUTONOMY_WORKING" push origin main 2>/dev/null || true
+    log_ok "TEAM.md generated and committed to shared clone + local bare"
+fi
+
 # Create bare git repos for each agent
 for name in "${AGENT_NAMES[@]}"; do
     ws="${AGENT_WORKSPACES[$name]}"
@@ -690,6 +723,8 @@ for name in "${AGENT_NAMES[@]}"; do
         export COMMS_URL='http://127.0.0.1:$COMMS_PORT'
         export COMMS_TOKEN='$token'
         export AUTONOMY_REPO='$AUTONOMY_REPO'
+        export AUTONOMY_DIR='$SHARED_AUTONOMY_WORKING'
+        export AUTONOMY_SHARED=1
         bash '$INSTALL_SCRIPT'
     " 2>&1 | log_verbose
 
