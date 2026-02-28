@@ -837,6 +837,7 @@ if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
         WORKSPACE_ROOT="$agent_home/workspace"
         AUTONOMY_STATE="$WORKSPACE_ROOT/.autonomy"
         mkdir -p "$AUTONOMY_STATE"
+        chown "$user:fagent" "$AUTONOMY_STATE"
         cat > "$AUTONOMY_STATE/imap-env" << IMAPEOF
 export IMAP_HOST="${imap_host}"
 export IMAP_PORT="${imap_port:-993}"
