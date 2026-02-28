@@ -819,7 +819,7 @@ if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
     IMAP_PORT="$imap_port" \
     bash "$SCRIPT_DIR/install-email.sh" \
         --port "$EMAIL_PORT" \
-        --dir "$INFRA_HOME/fagents-mcp" \
+        --dir "$INFRA_HOME/workspace/fagents-mcp" \
         --user "$INFRA_USER" \
         "${email_agent_args[@]}"
 
