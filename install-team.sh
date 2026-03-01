@@ -511,8 +511,8 @@ if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && grep -q "<!-- TEAM_ROLES -->" "$SHARED
         add TEAM.md
     sudo -u "$INFRA_USER" git -C "$SHARED_AUTONOMY_WORKING" \
         -c user.name='installer' -c user.email='installer@local' \
-        commit -m "TEAM.md: generated from install config" 2>/dev/null || true
-    sudo -u "$INFRA_USER" git -C "$SHARED_AUTONOMY_WORKING" push origin main 2>/dev/null || true
+        commit -m "TEAM.md: generated from install config" >/dev/null 2>&1 || true
+    sudo -u "$INFRA_USER" git -C "$SHARED_AUTONOMY_WORKING" push origin main >/dev/null 2>&1 || true
     log_ok "TEAM.md generated and committed to shared clone + local bare"
 fi
 
