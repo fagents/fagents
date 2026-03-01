@@ -202,7 +202,7 @@ if [[ ${#AGENTS[@]} -eq 0 ]]; then
         echo "  $tname — $tdesc"
     done
     echo ""
-    prompt TEMPLATE "Choose a template (or 'none' for manual)" "business"
+    prompt TEMPLATE "Choose a template (or 'none' for manual)" "freeturtle"
     if [[ "$TEMPLATE" != "none" ]]; then
         TEMPLATE_DIR="$SCRIPT_DIR/templates/$TEMPLATE"
         load_template "$TEMPLATE_DIR"
