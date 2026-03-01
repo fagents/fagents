@@ -502,7 +502,9 @@ if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && grep -q "<!-- TEAM_ROLES -->" "$SHARED
         ROLES_BLOCK+="- **$name** ($role)"$'\n'
     done
     # Write TEAM.md with placeholder replaced
-    TEAM_CONTENT=$(sed "s|<!-- TEAM_ROLES -->|${ROLES_BLOCK}|" "$SHARED_AUTONOMY_WORKING/TEAM.md")
+    # (sed can't handle newlines in replacement strings; use bash substitution instead)
+    _team_template=$(cat "$SHARED_AUTONOMY_WORKING/TEAM.md")
+    TEAM_CONTENT="${_team_template/<!-- TEAM_ROLES -->/$ROLES_BLOCK}"
     sudo -u "$INFRA_USER" bash -c "cat > '$SHARED_AUTONOMY_WORKING/TEAM.md'" <<< "$TEAM_CONTENT"
     sudo -u "$INFRA_USER" git -C "$SHARED_AUTONOMY_WORKING" \
         -c user.name='installer' -c user.email='installer@local' \
