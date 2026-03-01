@@ -316,7 +316,8 @@ CLAUDE_TOKEN=""
 if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
     echo ""
     echo "All agents need a Claude Code OAuth token to run."
-    echo "Run 'claude setup-token' on a machine with a browser, then paste it here."
+    echo "Install Claude Code if needed: https://claude.ai/code"
+    echo "Then run 'claude setup-token' and paste the token here."
     read -rp "Claude OAuth token (or Enter to skip): " CLAUDE_TOKEN
 fi
 
