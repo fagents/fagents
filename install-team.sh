@@ -738,14 +738,19 @@ for name in "${AGENT_NAMES[@]}"; do
         log_ok "Git remote → $REPOS_DIR/$ws.git"
     fi
 
-    # Set wake_channels based on agent role (DM cove + role-specific shared channels)
+    # Set wake_channels: use channels from team.json if present, else role-based defaults
     dm_channel="$(dm_channel_name "$name")"
-    wake_chs="$dm_channel"
-    case "${AGENT_ROLES[$name]:-}" in
-        parent) wake_chs="$dm_channel,parents-n-bots" ;;
-        kid)    wake_chs="$dm_channel,kids-n-bots" ;;
-        ops|coo|dev) wake_chs="$dm_channel,general" ;;
-    esac
+    tc="${AGENT_CHANNELS[$name]:-}"
+    if [[ -n "$tc" && "$tc" != "null" && "$tc" != "[]" ]]; then
+        wake_chs=$(echo "$tc" | jq -r --arg dm "$dm_channel" '. + [$dm] | unique | join(",")')
+    else
+        wake_chs="$dm_channel"
+        case "${AGENT_ROLES[$name]:-}" in
+            parent) wake_chs="$dm_channel,parents-n-bots" ;;
+            kid)    wake_chs="$dm_channel,kids-n-bots" ;;
+            ops|coo|dev) wake_chs="$dm_channel,general" ;;
+        esac
+    fi
     curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$name/config" \
         -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
