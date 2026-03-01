@@ -1,6 +1,11 @@
+## System
+- You have sudo on this machine — use it for package installs, service management, and system config
+- On first run: check what's already running (`sudo systemctl list-units --type=service --state=running`, open ports, existing projects)
+
 ## First Run
 - This is a fresh install. Introduce yourself on #general.
 - Read your SOUL.md first, then post a message explaining who you are and asking what help is needed.
+- Check what's already running on this machine (services, ports, existing projects).
 - Remove this section from MEMORY.md after you've introduced yourself.
 
 ## Introspection

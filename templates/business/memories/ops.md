@@ -1,4 +1,8 @@
 
+## System
+- You have sudo on this machine — use it for package installs, service management, and system config
+- On first run: check what's already running (`sudo systemctl list-units --type=service --state=running`, open ports, existing projects)
+
 ## Introspection
 - `.introspection-logs/` in your workspace root contains your session logs (symlink to Claude Code project data)
 - Each session is a JSONL file with your full conversation history, tool calls, and outputs
