@@ -78,6 +78,26 @@ log_ok() { echo -e "  ${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
 log_err() { echo -e "  ${RED}✗${NC} $1"; }
 
+# ── Prerequisites ──
+_missing_prereqs=()
+for cmd in git curl python3 jq; do
+    command -v "$cmd" &>/dev/null || _missing_prereqs+=("$cmd")
+done
+if [[ ${#_missing_prereqs[@]} -gt 0 ]]; then
+    echo ""
+    echo "Installing prerequisites: ${_missing_prereqs[*]}"
+    apt-get update -qq 2>&1 | log_verbose
+    apt-get install -y "${_missing_prereqs[@]}" 2>&1 | log_verbose
+    for cmd in "${_missing_prereqs[@]}"; do
+        if command -v "$cmd" &>/dev/null; then
+            log_ok "Installed $cmd"
+        else
+            log_err "Failed to install $cmd — run: apt-get install -y $cmd"
+            exit 1
+        fi
+    done
+fi
+
 # ── MCP helper: add a server to an agent's .mcp.json ──
 add_mcp_server() {
     local ws_dir="$1" owner="$2" name="$3" url="$4" api_key="$5"
