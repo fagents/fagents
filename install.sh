@@ -20,12 +20,22 @@ if [[ "$(id -u)" -ne 0 ]]; then
     exit 1
 fi
 
+_missing=()
 for cmd in git python3 curl jq; do
-    if ! command -v "$cmd" &>/dev/null; then
-        echo "ERROR: '$cmd' is required but not installed." >&2
-        exit 1
-    fi
+    command -v "$cmd" &>/dev/null || _missing+=("$cmd")
 done
+if [[ ${#_missing[@]} -gt 0 ]]; then
+    echo "Installing prerequisites: ${_missing[*]}"
+    apt-get update -qq 2>/dev/null || true
+    apt-get install -y "${_missing[@]}" 2>/dev/null || true
+    for cmd in "${_missing[@]}"; do
+        if ! command -v "$cmd" &>/dev/null; then
+            echo "ERROR: '$cmd' is required but could not be installed." >&2
+            echo "       Try: apt-get install -y $cmd" >&2
+            exit 1
+        fi
+    done
+fi
 
 # ── Clone ──
 INSTALL_DIR="/tmp/fagents-install-$$"
