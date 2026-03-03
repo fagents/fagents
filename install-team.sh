@@ -422,10 +422,29 @@ agent_user() {
     echo "$(echo "$1" | tr '[:upper:]' '[:lower:]')"
 }
 
+# Check if a username belongs to a pre-existing non-fagent user
+check_user_conflict() {
+    local user="$1" label="$2"
+    if id "$user" &>/dev/null; then
+        if ! id -nG "$user" 2>/dev/null | grep -qw fagent; then
+            echo "ERROR: Unix user '$user' already exists and is not a fagent." >&2
+            echo "       Cannot use '$label' as an agent name — it would collide with an existing user." >&2
+            echo "       Pick a different name or remove the existing user first." >&2
+            exit 1
+        fi
+    fi
+}
+
 # ── Step 1: Create group and users ──
 echo ""
 log_step "Step 1: Create users"
 groupadd -f fagent
+
+# Pre-flight: check all names for conflicts before creating anything
+check_user_conflict "$INFRA_USER" "$INFRA_USER"
+for name in "${AGENT_NAMES[@]}"; do
+    check_user_conflict "$(agent_user "$name")" "$name"
+done
 
 # Create infra user
 if id "$INFRA_USER" &>/dev/null; then
