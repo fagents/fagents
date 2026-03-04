@@ -44,6 +44,10 @@ trap 'rm -rf "$INSTALL_DIR"' EXIT
 echo "Fetching fagents..."
 git clone --depth 1 --quiet https://github.com/fagents/fagents.git "$INSTALL_DIR"
 
-# ── Run installer (redirect stdin from terminal for interactive prompts) ──
+# ── Run installer ──
 echo ""
-"$INSTALL_DIR/install-team.sh" "$@" < /dev/tty
+if [[ -n "${NONINTERACTIVE:-}" ]] || ! [[ -t 0 ]] || ! [[ -e /dev/tty ]]; then
+    "$INSTALL_DIR/install-team.sh" "$@"
+else
+    "$INSTALL_DIR/install-team.sh" "$@" < /dev/tty
+fi

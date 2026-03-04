@@ -202,10 +202,21 @@ dm_channel_name() {
 # ── Interactive mode ──
 prompt() {
     local var="$1" prompt_text="$2" default="$3"
+    # Non-interactive: if var already set in env, keep it
+    if [[ -n "${NONINTERACTIVE:-}" && -n "${!var:-}" ]]; then
+        return
+    fi
     if [[ -n "$default" ]]; then
-        read -rp "$prompt_text [$default]: " val
-        eval "$var='${val:-$default}'"
+        if [[ -n "${NONINTERACTIVE:-}" ]]; then
+            eval "$var='$default'"
+        else
+            read -rp "$prompt_text [$default]: " val
+            eval "$var='${val:-$default}'"
+        fi
     else
+        if [[ -n "${NONINTERACTIVE:-}" ]]; then
+            return
+        fi
         read -rp "$prompt_text: " val
         eval "$var='$val'"
     fi
@@ -265,7 +276,15 @@ prompt COMMS_PORT "Comms server port" "$COMMS_PORT"
 
 # Ask for human names
 echo ""
-if [[ ${#TEMPLATE_HUMANS[@]} -gt 0 ]]; then
+if [[ -n "${NONINTERACTIVE:-}" && -n "${HUMAN_NAMES_INPUT:-}" ]]; then
+    # Non-interactive: parse human names from env var
+    for human_name in $HUMAN_NAMES_INPUT; do
+        HUMAN_NAMES+=("$human_name")
+        HUMAN_ROLES+=("")
+        HUMAN_CHANNELS+=("")
+        HUMAN_PAIRED_AGENTS+=("")
+    done
+elif [[ ${#TEMPLATE_HUMANS[@]} -gt 0 ]]; then
     echo "Name the humans who'll use comms:"
     declare -A _role_idx
     for i in "${!TEMPLATE_HUMANS[@]}"; do
@@ -312,8 +331,8 @@ if [[ ${#HUMAN_NAMES[@]} -eq 0 ]]; then
 fi
 
 # Ask for Claude OAuth token upfront (so install runs unattended after this)
-CLAUDE_TOKEN=""
-if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
+CLAUDE_TOKEN="${CLAUDE_TOKEN:-}"
+if [[ -z "$SKIP_CLAUDE_AUTH" && -z "${NONINTERACTIVE:-}" ]]; then
     echo ""
     echo "All agents need a Claude Code OAuth token to run."
     echo "If Claude Code is not installed yet, run this first:"
@@ -324,8 +343,11 @@ fi
 
 # ── Email config (collected upfront, installed in Step 5b) ──
 EMAIL_PORT=$((COMMS_PORT + 1))
-echo ""
-read -rp "Enable email for agents? [y/N]: " enable_email
+enable_email=""
+if [[ -z "${NONINTERACTIVE:-}" ]]; then
+    echo ""
+    read -rp "Enable email for agents? [y/N]: " enable_email
+fi
 if [[ "${enable_email,,}" =~ ^y ]]; then
     echo ""
     echo "  Which agents should have email?"
@@ -398,10 +420,12 @@ for name in "${AGENTS[@]}"; do
 done
 
 echo ""
-read -rp "Proceed? [Y/n] " confirm
-if [[ "${confirm,,}" == "n" ]]; then
-    echo "Aborted."
-    exit 0
+if [[ -z "${NONINTERACTIVE:-}" ]]; then
+    read -rp "Proceed? [Y/n] " confirm
+    if [[ "${confirm,,}" == "n" ]]; then
+        echo "Aborted."
+        exit 0
+    fi
 fi
 
 # ── Parse AGENT:WORKSPACE pairs ──
