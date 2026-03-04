@@ -122,7 +122,7 @@ add_mcp_server() {
 
 # ── Optional: Machine hardening ──
 SETUP_SEC="$SCRIPT_DIR/setup-security.sh"
-if [[ -f "$SETUP_SEC" ]]; then
+if [[ -f "$SETUP_SEC" && -z "${NONINTERACTIVE:-}" ]]; then
     echo ""
     echo "Before we set up your team, want to harden this machine?"
     echo "(Firewall, SSH lockdown, auto-updates, audit logging)"
