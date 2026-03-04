@@ -535,26 +535,19 @@ elif [[ -d "$SHARED_AUTONOMY" ]]; then
     fi
 fi
 
-# Stage C: Generate TEAM.md from agent config and commit (local only, never reaches GitHub)
-if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && grep -q "<!-- TEAM_ROLES -->" "$SHARED_AUTONOMY_WORKING/TEAM.md" 2>/dev/null; then
+# Stage C: Generate TEAM.md from base template (untracked — gitignored in fagents-autonomy)
+BASE_TEAM_TEMPLATE="$SCRIPT_DIR/templates/base/TEAM.md"
+if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && [[ -f "$BASE_TEAM_TEMPLATE" ]]; then
     ROLES_BLOCK=""
     for name in "${AGENT_NAMES[@]}"; do
         role="${AGENT_ROLES[$name]:-agent}"
         ROLES_BLOCK+="- **$name** ($role)"$'\n'
     done
-    # Write TEAM.md with placeholder replaced
-    # (sed can't handle newlines in replacement strings; use bash substitution instead)
-    _team_template=$(cat "$SHARED_AUTONOMY_WORKING/TEAM.md")
+    # Merge base template with roles (no git tracking — TEAM.md is gitignored)
+    _team_template=$(cat "$BASE_TEAM_TEMPLATE")
     TEAM_CONTENT="${_team_template/<!-- TEAM_ROLES -->/$ROLES_BLOCK}"
     sudo -u "$INFRA_USER" bash -c "cat > '$SHARED_AUTONOMY_WORKING/TEAM.md'" <<< "$TEAM_CONTENT"
-    sudo -u "$INFRA_USER" git -C "$SHARED_AUTONOMY_WORKING" \
-        -c user.name='installer' -c user.email='installer@local' \
-        add TEAM.md
-    sudo -u "$INFRA_USER" git -C "$SHARED_AUTONOMY_WORKING" \
-        -c user.name='installer' -c user.email='installer@local' \
-        commit -m "TEAM.md: generated from install config" >/dev/null 2>&1 || true
-    sudo -u "$INFRA_USER" git -C "$SHARED_AUTONOMY_WORKING" push origin main >/dev/null 2>&1 || true
-    log_ok "TEAM.md generated and committed to shared clone + local bare"
+    log_ok "TEAM.md generated from base template (untracked)"
 fi
 
 # Create bare git repos for each agent
