@@ -214,10 +214,10 @@ SETTINGSEOF
     echo "  Created .claude/settings.json"
 fi
 
-# TEAM.md symlink
-if [[ ! -e TEAM.md ]]; then
-    ln -s "$AUTONOMY_DIR/TEAM.md" TEAM.md
-    echo "  Created TEAM.md symlink"
+# TEAM.md copy (tracked in agent's personal repo, not symlinked)
+if [[ ! -e TEAM.md ]] && [[ -f "$AUTONOMY_DIR/TEAM.md" ]]; then
+    cp "$AUTONOMY_DIR/TEAM.md" TEAM.md
+    echo "  Copied TEAM.md from shared autonomy clone"
 fi
 
 # .introspection-logs symlink (Claude Code session data for awareness scripts)

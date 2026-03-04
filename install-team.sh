@@ -794,8 +794,8 @@ for name in "${AGENT_NAMES[@]}"; do
     # Copy template files (TEAM.md + soul) into agent workspace
     if [[ -n "$TEMPLATE_DIR" ]]; then
         if [[ -f "$TEMPLATE_DIR/TEAM.md" ]]; then
-            # Inject template roles into TEAM_ROLES marker in autonomy's TEAM.md
-            team_target=$(readlink -f "$agent_ws/TEAM.md" 2>/dev/null || echo "$agent_ws/TEAM.md")
+            # Inject template roles into TEAM_ROLES marker in agent's TEAM.md
+            team_target="$agent_ws/TEAM.md"
             if [[ -f "$team_target" ]] && grep -q '<!-- TEAM_ROLES -->' "$team_target"; then
                 template_content=$(cat "$TEMPLATE_DIR/TEAM.md")
                 awk -v content="$template_content" '{gsub(/<!-- TEAM_ROLES -->/, content)}1' "$team_target" > "$team_target.tmp"
@@ -808,7 +808,7 @@ for name in "${AGENT_NAMES[@]}"; do
                 log_ok "Copied TEAM.md (no marker found)"
             fi
             # Substitute default role names with actual agent names
-            team_file=$(readlink -f "$agent_ws/TEAM.md" 2>/dev/null || echo "$agent_ws/TEAM.md")
+            team_file="$agent_ws/TEAM.md"
             for aname in "${AGENTS[@]}"; do
                 arole="${AGENT_ROLES[$aname]:-}"
                 if [[ -n "$arole" && "$arole" != "$aname" ]]; then
