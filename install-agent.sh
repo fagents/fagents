@@ -362,6 +362,7 @@ export COMMS_PORT="$COMMS_PORT"
 # ── Daemon config ──
 export WAKE_CHANNELS=""
 export HEARTBEAT_INTERVAL="300"
+export MODEL_CTX_SIZE="200000"
 
 # ── Launch ──
 exec "\$AUTONOMY_DIR/bin/launch.sh"
