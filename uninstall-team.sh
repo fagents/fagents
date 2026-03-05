@@ -120,6 +120,7 @@ echo "=== Step 2: Remove users ==="
 for user in "${AGENT_USERS[@]}"; do
     if id "$user" &>/dev/null; then
         rm -f "/etc/sudoers.d/$user"
+        rm -f "/etc/sudoers.d/${user}-telegram"
         userdel -r "$user" 2>/dev/null && echo "  Removed $user" || echo "  WARNING: could not fully remove $user"
     fi
 done

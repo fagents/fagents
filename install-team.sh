@@ -45,8 +45,14 @@ declare -A EMAIL_SMTP_PASS
 declare -A EMAIL_IMAP_USER
 declare -A EMAIL_IMAP_PASS
 
+TELEGRAM_CONFIGURED=""
+TELEGRAM_AGENTS=()
+declare -A TELEGRAM_BOT_TOKEN
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTONOMY_REPO="https://github.com/fagents/fagents-autonomy.git"
+CLI_REPO="https://github.com/fagents/fagents-cli.git"
+CLI_DIR=""
 
 # ── Parse args ──
 while [[ $# -gt 0 ]]; do
@@ -398,6 +404,63 @@ if [[ "${enable_email,,}" =~ ^y ]]; then
     fi
 fi
 
+# ── Telegram config (collected upfront, installed in Step 5c) ──
+enable_telegram=""
+if [[ -z "${NONINTERACTIVE:-}" ]]; then
+    echo ""
+    read -rp "Enable Telegram for agents? [y/N]: " enable_telegram
+elif [[ -n "${TELEGRAM_ENABLE:-}" ]]; then
+    enable_telegram="y"
+fi
+if [[ "${enable_telegram,,}" =~ ^y ]]; then
+    if [[ -n "${NONINTERACTIVE:-}" && -n "${TELEGRAM_AGENTS_INPUT:-}" ]]; then
+        for name in $TELEGRAM_AGENTS_INPUT; do
+            # Match case-insensitively against AGENTS
+            for a in "${AGENTS[@]}"; do
+                if [[ "${a,,}" == "${name,,}" ]]; then
+                    TELEGRAM_AGENTS+=("$a")
+                    break
+                fi
+            done
+        done
+    elif [[ -z "${NONINTERACTIVE:-}" ]]; then
+        echo ""
+        echo "  Which agents should have Telegram?"
+        for i in "${!AGENTS[@]}"; do
+            echo "    $((i+1)). ${AGENTS[$i]}"
+        done
+        echo "    a. All agents"
+        echo ""
+        read -rp "  Select (numbers separated by spaces, or 'a' for all): " tg_selection
+
+        if [[ "$tg_selection" == "a" ]]; then
+            TELEGRAM_AGENTS=("${AGENTS[@]}")
+        else
+            for num in $tg_selection; do
+                idx=$((num - 1))
+                if [[ $idx -ge 0 && $idx -lt ${#AGENTS[@]} ]]; then
+                    TELEGRAM_AGENTS+=("${AGENTS[$idx]}")
+                fi
+            done
+        fi
+    fi
+
+    if [[ ${#TELEGRAM_AGENTS[@]} -gt 0 ]]; then
+        echo ""
+        echo "  Per-agent bot tokens (from BotFather — one bot per agent):"
+        for name in "${TELEGRAM_AGENTS[@]}"; do
+            # Check for NONINTERACTIVE env var first
+            local_var="TELEGRAM_BOT_TOKEN_${name^^}"
+            if [[ -n "${!local_var:-}" ]]; then
+                TELEGRAM_BOT_TOKEN[$name]="${!local_var}"
+            elif [[ -z "${NONINTERACTIVE:-}" ]]; then
+                read -rsp "    $name bot token: " _tg_token; echo ""
+                TELEGRAM_BOT_TOKEN[$name]="$_tg_token"
+            fi
+        done
+    fi
+fi
+
 echo ""
 echo "  Infra user:  $INFRA_USER (owns comms + git repos)"
 echo "  Agents:      ${AGENTS[*]}"
@@ -409,6 +472,11 @@ if [[ ${#EMAIL_AGENTS[@]} -gt 0 ]]; then
     echo "  SMTP:        ${smtp_host:-}:${smtp_port:-587}"
 else
     echo "  Email:       disabled"
+fi
+if [[ ${#TELEGRAM_AGENTS[@]} -gt 0 ]]; then
+    echo "  Telegram:    enabled (${TELEGRAM_AGENTS[*]})"
+else
+    echo "  Telegram:    disabled"
 fi
 
 # Warn about sudo agents
@@ -556,6 +624,32 @@ elif [[ -d "$SHARED_AUTONOMY" ]]; then
         log_ok "Created shared autonomy working clone at $SHARED_AUTONOMY_WORKING"
     else
         log_warn "Failed to create shared autonomy working clone"
+    fi
+fi
+
+# Clone fagents-cli (needed for Telegram, useful for all agents)
+SHARED_CLI="$INFRA_HOME/repos/fagents-cli.git"
+if [[ -d "$SHARED_CLI" ]]; then
+    log_ok "fagents-cli.git already at $SHARED_CLI"
+else
+    if su - "$INFRA_USER" -c "git clone --bare '$CLI_REPO' ~/repos/fagents-cli.git" 2>&1 | log_verbose; then
+        su - "$INFRA_USER" -c "git -C ~/repos/fagents-cli.git remote remove origin" 2>/dev/null || true
+        log_ok "Cloned fagents-cli.git"
+    else
+        log_warn "Failed to clone fagents-cli — run with --verbose for details"
+    fi
+fi
+[[ -d "$SHARED_CLI" ]] && chmod -R g+rX "$SHARED_CLI"
+
+CLI_DIR="$INFRA_HOME/workspace/fagents-cli"
+if [[ -d "$CLI_DIR" ]]; then
+    log_ok "fagents-cli working copy already at $CLI_DIR"
+elif [[ -d "$SHARED_CLI" ]]; then
+    if su - "$INFRA_USER" -c "git clone '$SHARED_CLI' ~/workspace/fagents-cli" 2>&1 | log_verbose; then
+        chmod -R g+rX "$CLI_DIR"
+        log_ok "Created fagents-cli working copy at $CLI_DIR"
+    else
+        log_warn "Failed to create fagents-cli working copy"
     fi
 fi
 
@@ -946,6 +1040,61 @@ EMAILEOF
         log_ok "$name: email configured"
     done
     EMAIL_CONFIGURED=1
+fi
+
+# ── Step 5c: Telegram setup (non-interactive — config collected upfront) ──
+if [[ ${#TELEGRAM_AGENTS[@]} -gt 0 ]]; then
+    log_step "Step 5c: Telegram setup"
+
+    # Create credential store
+    mkdir -p "$INFRA_HOME/.agents"
+    for name in "${TELEGRAM_AGENTS[@]}"; do
+        user=$(agent_user "$name")
+        agent_dir="$INFRA_HOME/.agents/$user"
+        mkdir -p "$agent_dir"
+
+        # Write telegram.env
+        cat > "$agent_dir/telegram.env" <<TGEOF
+TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN[$name]:-}
+TGEOF
+
+        chown -R "$INFRA_USER:fagent" "$agent_dir"
+        chmod 700 "$agent_dir"
+        chmod 600 "$agent_dir/telegram.env"
+    done
+    log_ok "Telegram credentials stored in $INFRA_HOME/.agents/"
+
+    # Sudoers rules — allow agents to run telegram.sh as fagents
+    if [[ -n "$CLI_DIR" ]] && [[ -d "$CLI_DIR" ]]; then
+        for name in "${TELEGRAM_AGENTS[@]}"; do
+            user=$(agent_user "$name")
+            # Skip agents that already have full sudo (bootstrap agents)
+            [[ -n "${AGENT_BOOTSTRAP[$name]:-}" ]] && continue
+            echo "$user ALL=($INFRA_USER) NOPASSWD: $CLI_DIR/telegram.sh" > "/etc/sudoers.d/${user}-telegram"
+            chmod 440 "/etc/sudoers.d/${user}-telegram"
+        done
+        log_ok "Sudoers rules created for telegram.sh"
+    fi
+
+    # Add Telegram instructions to each agent's MEMORY.md
+    for name in "${TELEGRAM_AGENTS[@]}"; do
+        user=$(agent_user "$name")
+        ws="${AGENT_WORKSPACES[$name]}"
+        agent_home=$(eval echo "~$user")
+        agent_ws="$agent_home/workspace/$ws"
+        cat >> "$agent_ws/memory/MEMORY.md" <<TGMEMEOF
+
+## Telegram
+- You have Telegram via \`sudo -u fagents $CLI_DIR/telegram.sh\`
+- Commands: \`whoami\`, \`send <chat-id> <message>\`, \`poll\`
+- The daemon collects incoming DMs automatically via \`collect_telegram()\`
+- Use \`send\` to reply — the chat ID comes from the inbox message
+- Do NOT try to access bot tokens directly — credential isolation via sudo
+TGMEMEOF
+        chown "$user:fagent" "$agent_ws/memory/MEMORY.md"
+        log_ok "$name: Telegram configured"
+    done
+    TELEGRAM_CONFIGURED=1
 fi
 
 # ── Step 6: Claude Code setup ──
