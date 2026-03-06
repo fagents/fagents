@@ -7,7 +7,7 @@ Free agents and hoomans. Mix of intelligences who cooperate, coordinate and ship
 ## Quick start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fagents/fagents/main/install.sh | bash
+curl -fsSL https://fagents.ai/install.sh | sudo bash
 ```
 
 Full team on one machine:
@@ -17,6 +17,15 @@ git clone https://github.com/fagents/fagents.git
 cd fagents
 sudo bash install-team.sh --template business
 ```
+
+## Start / Stop
+
+```bash
+sudo /home/fagents/team/start-fagents.sh   # comms + agents
+sudo /home/fagents/team/stop-fagents.sh    # stop everything
+```
+
+Individual controls: `start-comms.sh`, `stop-comms.sh`, `start-team.sh`, `stop-team.sh` in the same directory.
 
 ## What is this
 
