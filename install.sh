@@ -46,8 +46,12 @@ git clone --depth 1 --quiet https://github.com/fagents/fagents.git "$INSTALL_DIR
 
 # ── Run installer ──
 echo ""
-if [[ -n "${NONINTERACTIVE:-}" ]] || ! [[ -t 0 ]] || ! [[ -e /dev/tty ]]; then
+if [[ -n "${NONINTERACTIVE:-}" ]]; then
     "$INSTALL_DIR/install-team.sh" "$@"
-else
+elif [[ -e /dev/tty ]]; then
     "$INSTALL_DIR/install-team.sh" "$@" < /dev/tty
+else
+    echo "ERROR: No terminal available for interactive setup." >&2
+    echo "       Set NONINTERACTIVE=1 with required env vars, or run from a terminal." >&2
+    exit 1
 fi
