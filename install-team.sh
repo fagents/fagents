@@ -48,6 +48,7 @@ declare -A EMAIL_IMAP_PASS
 TELEGRAM_CONFIGURED=""
 TELEGRAM_AGENTS=()
 declare -A TELEGRAM_BOT_TOKEN
+declare -A TELEGRAM_ALLOWED
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTONOMY_REPO="https://github.com/fagents/fagents-autonomy.git"
@@ -458,6 +459,38 @@ if [[ "${enable_telegram,,}" =~ ^y ]]; then
                 TELEGRAM_BOT_TOKEN[$name]="$_tg_token"
             fi
         done
+
+        # Discover allowed Telegram user IDs
+        if [[ -z "${NONINTERACTIVE:-}" ]]; then
+            echo ""
+            echo "  Bots are public — anyone can message them."
+            echo "  Let's lock each bot to your Telegram account."
+            echo ""
+            for name in "${TELEGRAM_AGENTS[@]}"; do
+                _tk="${TELEGRAM_BOT_TOKEN[$name]:-}"
+                [[ -n "$_tk" ]] || continue
+                echo "  $name: send /start to the bot now, then press Enter."
+                read -rp "    Press Enter when done... "
+                # Poll for the user ID
+                _resp=$(curl -sf --max-time 10 "https://api.telegram.org/bot${_tk}/getUpdates?timeout=0" 2>/dev/null) || true
+                _uid=$(echo "$_resp" | jq -r '[.result[].message.from.id // empty] | unique | first // empty' 2>/dev/null)
+                if [[ -n "$_uid" ]]; then
+                    TELEGRAM_ALLOWED[$name]="$_uid"
+                    _uname=$(echo "$_resp" | jq -r '[.result[].message.from.username // empty] | first // empty' 2>/dev/null)
+                    log_ok "$name: locked to user ${_uname:-$_uid} (ID: $_uid)"
+                else
+                    log_warn "$name: no messages found — bot will accept messages from anyone"
+                fi
+            done
+        else
+            # NONINTERACTIVE: check for TELEGRAM_ALLOWED_<NAME> env vars
+            for name in "${TELEGRAM_AGENTS[@]}"; do
+                local_var="TELEGRAM_ALLOWED_${name^^}"
+                if [[ -n "${!local_var:-}" ]]; then
+                    TELEGRAM_ALLOWED[$name]="${!local_var}"
+                fi
+            done
+        fi
     fi
 fi
 
@@ -1056,6 +1089,7 @@ if [[ ${#TELEGRAM_AGENTS[@]} -gt 0 ]]; then
         # Write telegram.env
         cat > "$agent_dir/telegram.env" <<TGEOF
 TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN[$name]:-}
+TELEGRAM_ALLOWED_IDS=${TELEGRAM_ALLOWED[$name]:-}
 TGEOF
 
         chown -R "$INFRA_USER:fagent" "$agent_dir"
