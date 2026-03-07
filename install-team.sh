@@ -479,15 +479,19 @@ if [[ "${enable_telegram,,}" =~ ^y ]]; then
                     _uname=$(echo "$_resp" | jq -r '[.result[].message.from.username // empty] | first // empty' 2>/dev/null)
                     log_ok "$name: locked to user ${_uname:-$_uid} (ID: $_uid)"
                 else
-                    log_warn "$name: no messages found — bot will accept messages from anyone"
+                    TELEGRAM_ALLOWED[$name]="NONE"
+                    log_warn "$name: no messages found — bot locked (no one can message)"
+                    log_warn "  Add your Telegram user ID later in $INFRA_HOME/.agents/$(agent_user "$name")/telegram.env"
                 fi
             done
         else
-            # NONINTERACTIVE: check for TELEGRAM_ALLOWED_<NAME> env vars
+            # NONINTERACTIVE: check for TELEGRAM_ALLOWED_<NAME> env vars, default to locked
             for name in "${TELEGRAM_AGENTS[@]}"; do
                 local_var="TELEGRAM_ALLOWED_${name^^}"
                 if [[ -n "${!local_var:-}" ]]; then
                     TELEGRAM_ALLOWED[$name]="${!local_var}"
+                else
+                    TELEGRAM_ALLOWED[$name]="NONE"
                 fi
             done
         fi
