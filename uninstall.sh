@@ -26,6 +26,14 @@ for cmd in git; do
     fi
 done
 
+# ── Platform detection ──
+OS="$(uname -s)"
+case "$OS" in
+    Linux)  UNINSTALLER="uninstall-team.sh" ;;
+    Darwin) UNINSTALLER="uninstall-team-macos.sh" ;;
+    *)      echo "ERROR: Unsupported OS: $OS" >&2; exit 1 ;;
+esac
+
 INSTALL_DIR="/tmp/fagents-uninstall-$$"
 trap 'rm -rf "$INSTALL_DIR"' EXIT
 
@@ -33,4 +41,8 @@ echo "Fetching fagents..."
 git clone --depth 1 --quiet https://github.com/fagents/fagents.git "$INSTALL_DIR"
 
 echo ""
-"$INSTALL_DIR/uninstall-team.sh" "$@" < /dev/tty
+if [[ -e /dev/tty ]]; then
+    "$INSTALL_DIR/$UNINSTALLER" "$@" < /dev/tty
+else
+    "$INSTALL_DIR/$UNINSTALLER" "$@"
+fi
