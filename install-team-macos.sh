@@ -48,6 +48,7 @@ TELEGRAM_CONFIGURED=""
 TELEGRAM_AGENTS=()
 declare -A TELEGRAM_BOT_TOKEN
 declare -A TELEGRAM_ALLOWED
+OPENAI_API_KEY=""
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTONOMY_REPO="https://github.com/fagents/fagents-autonomy.git"
@@ -417,6 +418,16 @@ if [[ "${enable_telegram,,}" =~ ^y ]]; then
                     TELEGRAM_ALLOWED[$name]="NONE"
                 fi
             done
+        fi
+
+        # Optional: OpenAI API key for voice (TTS + Whisper STT)
+        if [[ -z "${NONINTERACTIVE:-}" ]]; then
+            echo ""
+            echo "  Optional: OpenAI API key for voice messages (TTS + Whisper STT)."
+            read -rsp "    OpenAI API key (blank to skip): " _openai_key; echo ""
+            [[ -n "$_openai_key" ]] && OPENAI_API_KEY="$_openai_key"
+        else
+            OPENAI_API_KEY="${OPENAI_API_KEY_INPUT:-}"
         fi
     fi
 fi
@@ -927,6 +938,14 @@ TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN[$name]:-}
 TELEGRAM_ALLOWED_IDS=${TELEGRAM_ALLOWED[$name]:-}
 TGEOF
 
+        # Write openai.env if key provided
+        if [[ -n "$OPENAI_API_KEY" ]]; then
+            cat > "$agent_dir/openai.env" <<OAEOF
+OPENAI_API_KEY=$OPENAI_API_KEY
+OAEOF
+            chmod 600 "$agent_dir/openai.env"
+        fi
+
         chown -R "$INFRA_USER:fagent" "$agent_dir"
         chmod 700 "$agent_dir"
         chmod 600 "$agent_dir/telegram.env"
@@ -938,10 +957,10 @@ TGEOF
         for name in "${TELEGRAM_AGENTS[@]}"; do
             user=$(agent_user "$name")
             [[ -n "${AGENT_BOOTSTRAP[$name]:-}" ]] && continue
-            echo "$user ALL=($INFRA_USER) NOPASSWD: $CLI_DIR/telegram.sh" > "/etc/sudoers.d/${user}-telegram"
+            echo "$user ALL=($INFRA_USER) NOPASSWD: $CLI_DIR/telegram.sh, $CLI_DIR/tts-speak.sh, $CLI_DIR/stt-transcribe.sh" > "/etc/sudoers.d/${user}-telegram"
             chmod 440 "/etc/sudoers.d/${user}-telegram"
         done
-        log_ok "Sudoers rules created for telegram.sh"
+        log_ok "Sudoers rules created for telegram.sh, tts-speak.sh, stt-transcribe.sh"
     fi
 
     # Add Telegram instructions to each agent's MEMORY.md
