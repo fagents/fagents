@@ -1143,10 +1143,12 @@ OAEOF
 
 ## Telegram
 - You have Telegram via \`sudo -u fagents $CLI_DIR/telegram.sh\`
-- Commands: \`whoami\`, \`send <chat-id> <message>\`, \`poll\`
+- Commands: \`whoami\`, \`send <chat-id> <message>\`, \`sendVoice <chat-id> <ogg-file>\`, \`poll\`
 - The daemon collects incoming DMs automatically via \`collect_telegram()\`
 - Use \`send\` to reply — the chat ID comes from the inbox message
-- Do NOT try to access bot tokens directly — credential isolation via sudo
+- Voice output: \`sudo -u fagents $CLI_DIR/tts-speak.sh <chat-id> "text"\` — text to speech via OpenAI TTS, sent as Telegram voice message
+- Voice input: incoming voice messages are automatically transcribed via Whisper and appear as text in your inbox
+- Do NOT try to access bot tokens or API keys directly — credential isolation via sudo
 TGMEMEOF
         chown "$user:fagent" "$agent_ws/memory/MEMORY.md"
         log_ok "$name: Telegram configured"
