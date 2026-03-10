@@ -114,6 +114,7 @@ for user in "${AGENT_USERS[@]}"; do
     if id "$user" &>/dev/null; then
         rm -f "/etc/sudoers.d/$user"
         rm -f "/etc/sudoers.d/${user}-telegram"
+        rm -f "/etc/sudoers.d/${user}-x"
         dscl . -delete /Users/"$user" 2>/dev/null && echo "  Removed user: $user" || echo "  WARNING: could not remove user $user"
         rm -rf /Users/"$user"
     fi

@@ -51,6 +51,14 @@ declare -A TELEGRAM_BOT_TOKEN
 declare -A TELEGRAM_ALLOWED
 OPENAI_API_KEY=""
 
+X_CONFIGURED=""
+X_AGENTS=()
+X_BEARER_TOKEN=""
+X_CONSUMER_KEY=""
+X_CONSUMER_SECRET=""
+X_ACCESS_TOKEN=""
+X_ACCESS_TOKEN_SECRET=""
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTONOMY_REPO="https://github.com/fagents/fagents-autonomy.git"
 CLI_REPO="https://github.com/fagents/fagents-cli.git"
@@ -509,6 +517,66 @@ if [[ "${enable_telegram,,}" =~ ^y ]]; then
     fi
 fi
 
+# ── X (Twitter) config (collected upfront, installed in Step 5d) ──
+enable_x=""
+if [[ -z "${NONINTERACTIVE:-}" ]]; then
+    echo ""
+    read -rp "Enable X (Twitter) for agents? [y/N]: " enable_x
+elif [[ -n "${X_ENABLE:-}" ]]; then
+    enable_x="y"
+fi
+if [[ "${enable_x,,}" =~ ^y ]]; then
+    if [[ -n "${NONINTERACTIVE:-}" && -n "${X_AGENTS_INPUT:-}" ]]; then
+        for name in $X_AGENTS_INPUT; do
+            for a in "${AGENTS[@]}"; do
+                if [[ "${a,,}" == "${name,,}" ]]; then
+                    X_AGENTS+=("$a")
+                    break
+                fi
+            done
+        done
+    elif [[ -z "${NONINTERACTIVE:-}" ]]; then
+        echo ""
+        echo "  Which agents should have X (Twitter)?"
+        for i in "${!AGENTS[@]}"; do
+            echo "    $((i+1)). ${AGENTS[$i]}"
+        done
+        echo "    a. All agents"
+        echo ""
+        read -rp "  Select (numbers separated by spaces, or 'a' for all): " x_selection
+
+        if [[ "$x_selection" == "a" ]]; then
+            X_AGENTS=("${AGENTS[@]}")
+        else
+            for num in $x_selection; do
+                idx=$((num - 1))
+                if [[ $idx -ge 0 && $idx -lt ${#AGENTS[@]} ]]; then
+                    X_AGENTS+=("${AGENTS[$idx]}")
+                fi
+            done
+        fi
+    fi
+
+    if [[ ${#X_AGENTS[@]} -gt 0 ]]; then
+        echo ""
+        echo "  X API credentials (shared across all selected agents):"
+        echo "  Get these from developer.x.com — one app, all agents share it."
+        if [[ -z "${NONINTERACTIVE:-}" ]]; then
+            read -rsp "    Bearer token: " X_BEARER_TOKEN; echo ""
+            read -rp  "    Consumer key: " X_CONSUMER_KEY
+            read -rsp "    Consumer secret: " X_CONSUMER_SECRET; echo ""
+            read -rp  "    Access token: " X_ACCESS_TOKEN
+            read -rsp "    Access token secret: " X_ACCESS_TOKEN_SECRET; echo ""
+        else
+            X_BEARER_TOKEN="${X_BEARER_TOKEN_INPUT:-}"
+            X_CONSUMER_KEY="${X_CONSUMER_KEY_INPUT:-}"
+            X_CONSUMER_SECRET="${X_CONSUMER_SECRET_INPUT:-}"
+            X_ACCESS_TOKEN="${X_ACCESS_TOKEN_INPUT:-}"
+            X_ACCESS_TOKEN_SECRET="${X_ACCESS_TOKEN_SECRET_INPUT:-}"
+        fi
+    fi
+fi
+
 echo ""
 echo "  Infra user:  $INFRA_USER (owns comms + git repos)"
 echo "  Agents:      ${AGENTS[*]}"
@@ -525,6 +593,11 @@ if [[ ${#TELEGRAM_AGENTS[@]} -gt 0 ]]; then
     echo "  Telegram:    enabled (${TELEGRAM_AGENTS[*]})"
 else
     echo "  Telegram:    disabled"
+fi
+if [[ ${#X_AGENTS[@]} -gt 0 ]]; then
+    echo "  X (Twitter): enabled (${X_AGENTS[*]})"
+else
+    echo "  X (Twitter): disabled"
 fi
 
 # Warn about sudo agents
@@ -1154,6 +1227,62 @@ TGMEMEOF
         log_ok "$name: Telegram configured"
     done
     TELEGRAM_CONFIGURED=1
+fi
+
+# ── Step 5d: X (Twitter) setup (non-interactive — config collected upfront) ──
+if [[ ${#X_AGENTS[@]} -gt 0 ]]; then
+    log_step "Step 5d: X (Twitter) setup"
+
+    mkdir -p "$INFRA_HOME/.agents"
+    for name in "${X_AGENTS[@]}"; do
+        user=$(agent_user "$name")
+        agent_dir="$INFRA_HOME/.agents/$user"
+        mkdir -p "$agent_dir"
+
+        # Write x.env
+        cat > "$agent_dir/x.env" <<XEOF
+X_BEARER_TOKEN=$X_BEARER_TOKEN
+X_CONSUMER_KEY=$X_CONSUMER_KEY
+X_CONSUMER_SECRET=$X_CONSUMER_SECRET
+X_ACCESS_TOKEN=$X_ACCESS_TOKEN
+X_ACCESS_TOKEN_SECRET=$X_ACCESS_TOKEN_SECRET
+XEOF
+
+        chown -R "$INFRA_USER:fagent" "$agent_dir"
+        chmod 700 "$agent_dir"
+        chmod 600 "$agent_dir/x.env"
+
+        # Sudoers — append x.sh to existing telegram rule, or create new
+        if [[ -n "$CLI_DIR" ]] && [[ -d "$CLI_DIR" ]]; then
+            if [[ -z "${AGENT_BOOTSTRAP[$name]:-}" ]]; then
+                if [[ -f "/etc/sudoers.d/${user}-telegram" ]]; then
+                    existing=$(cat "/etc/sudoers.d/${user}-telegram")
+                    echo "${existing}, $CLI_DIR/x.sh" > "/etc/sudoers.d/${user}-telegram"
+                    chmod 440 "/etc/sudoers.d/${user}-telegram"
+                else
+                    echo "$user ALL=($INFRA_USER) NOPASSWD: $CLI_DIR/x.sh" > "/etc/sudoers.d/${user}-x"
+                    chmod 440 "/etc/sudoers.d/${user}-x"
+                fi
+            fi
+        fi
+
+        # MEMORY.md
+        ws="${AGENT_WORKSPACES[$name]}"
+        agent_home=$(eval echo "~$user")
+        agent_ws="$agent_home/workspace/$ws"
+        cat >> "$agent_ws/memory/MEMORY.md" <<XMEMEOF
+
+## X (Twitter)
+- You have X (Twitter) via \`sudo -u fagents $CLI_DIR/x.sh\`
+- Read commands: \`search <query>\`, \`tweet <id>\`, \`user <username>\`, \`tweets <username>\`
+- Write commands: \`post <text>\`, \`reply <tweet-id> <text>\`
+- X is on-demand — call it when you need it, no polling/daemon integration
+- Do NOT try to access API keys or tokens directly — credential isolation via sudo
+XMEMEOF
+        chown "$user:fagent" "$agent_ws/memory/MEMORY.md"
+        log_ok "$name: X configured"
+    done
+    X_CONFIGURED=1
 fi
 
 # ── Step 6: Claude Code setup ──
