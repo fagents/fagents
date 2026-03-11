@@ -159,7 +159,7 @@ prompt() {
 log_step "Step 0: Introductions"
 echo ""
 echo "Welcome to fagents!"
-echo "Your team starts with two agents:"
+echo "Your team starts with two agents (ops can add more later):"
 echo "  ops  — infrastructure, system admin, sudo, team management"
 echo "  comms — Telegram, X, email, voice — your team's interface to the outside world"
 echo ""
@@ -216,7 +216,7 @@ EMAIL_ENABLED=""
 enable_email=""
 if [[ -z "${NONINTERACTIVE:-}" ]]; then
     echo ""
-    read -rp "Enable email for comms agent? [y/N]: " enable_email
+    read -rp "Enable email for $COMMS_AGENT_NAME? [y/N]: " enable_email
 fi
 if [[ "${enable_email,,}" =~ ^y ]]; then
     echo ""
@@ -247,7 +247,7 @@ declare -A TELEGRAM_ALLOWED
 enable_telegram=""
 if [[ -z "${NONINTERACTIVE:-}" ]]; then
     echo ""
-    read -rp "Enable Telegram for comms agent? [y/N]: " enable_telegram
+    read -rp "Enable Telegram for $COMMS_AGENT_NAME? [y/N]: " enable_telegram
 elif [[ -n "${TELEGRAM_ENABLE:-}" ]]; then
     enable_telegram="y"
 fi
@@ -291,7 +291,7 @@ fi
 enable_x=""
 if [[ -z "${NONINTERACTIVE:-}" ]]; then
     echo ""
-    read -rp "Enable X (Twitter) for comms agent? [y/N]: " enable_x
+    read -rp "Enable X (Twitter) for $COMMS_AGENT_NAME? [y/N]: " enable_x
 elif [[ -n "${X_ENABLE:-}" ]]; then
     enable_x="y"
 fi
