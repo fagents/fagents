@@ -159,7 +159,9 @@ prompt() {
 log_step "Step 0: Introductions"
 echo ""
 echo "Welcome to fagents!"
-echo "Your team: an ops agent and a comms agent."
+echo "Your team starts with two agents:"
+echo "  ops  — infrastructure, system admin, sudo, team management"
+echo "  comms — Telegram, X, email, voice — your team's interface to the outside world"
 echo ""
 
 prompt OPS_AGENT_NAME "Name your ops agent" "$OPS_AGENT_NAME"
@@ -314,7 +316,7 @@ fi
 echo ""
 echo "  Infra user:  $INFRA_USER (owns comms + git repos)"
 echo "  Ops agent:   $OPS_AGENT_NAME ($OPS_USER) — infra, sudo"
-echo "  Comms agent: $COMMS_AGENT_NAME ($COMMS_USER) — external communications"
+echo "  Comms agent: $COMMS_AGENT_NAME ($COMMS_USER) — talks to humans and the outside world"
 echo "  Humans:      ${HUMAN_NAMES[*]}"
 echo "  Comms:       127.0.0.1:$COMMS_PORT"
 [[ -n "$CLAUDE_TOKEN" ]] && echo "  Claude auth: provided" || echo "  Claude auth: skip (set up manually later)"
@@ -570,28 +572,28 @@ if [[ -n "$_admin_token" ]]; then
         -H "Content-Type: application/json" \
         -d '{"allow": ["*"]}' > /dev/null 2>&1 || true
 
-    # dm-<ops> — ops + humans
+    # <ops> — ops + humans
     ops_dm_allow=$(printf '%s\n' "$OPS_AGENT_NAME" "${HUMAN_NAMES[@]}" | jq -R . | jq -sc .)
     curl -sf -X POST "http://127.0.0.1:$COMMS_PORT/api/channels" \
         -H "Authorization: Bearer $_admin_token" \
         -H "Content-Type: application/json" \
-        -d "{\"name\": \"dm-$OPS_USER\", \"allow\": $ops_dm_allow}" > /dev/null 2>&1 || true
-    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/channels/dm-$OPS_USER/acl" \
+        -d "{\"name\": \"$OPS_USER\", \"allow\": $ops_dm_allow}" > /dev/null 2>&1 || true
+    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/channels/$OPS_USER/acl" \
         -H "Authorization: Bearer $_admin_token" \
         -H "Content-Type: application/json" \
         -d "{\"allow\": $ops_dm_allow}" > /dev/null 2>&1 || true
 
-    # dm-<comms> — comms + humans
+    # <comms> — comms + humans
     comms_dm_allow=$(printf '%s\n' "$COMMS_AGENT_NAME" "${HUMAN_NAMES[@]}" | jq -R . | jq -sc .)
     curl -sf -X POST "http://127.0.0.1:$COMMS_PORT/api/channels" \
         -H "Authorization: Bearer $_admin_token" \
         -H "Content-Type: application/json" \
-        -d "{\"name\": \"dm-$COMMS_USER\", \"allow\": $comms_dm_allow}" > /dev/null 2>&1 || true
-    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/channels/dm-$COMMS_USER/acl" \
+        -d "{\"name\": \"$COMMS_USER\", \"allow\": $comms_dm_allow}" > /dev/null 2>&1 || true
+    curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/channels/$COMMS_USER/acl" \
         -H "Authorization: Bearer $_admin_token" \
         -H "Content-Type: application/json" \
         -d "{\"allow\": $comms_dm_allow}" > /dev/null 2>&1 || true
-    log_ok "Channels created: general, dm-$OPS_USER, dm-$COMMS_USER"
+    log_ok "Channels created: general, $OPS_USER, $COMMS_USER"
 fi
 
 # Subscribe agents
@@ -600,7 +602,7 @@ for i in "${!AGENT_NAMES[@]}"; do
     user="${AGENT_USERS[$i]}"
     token="${AGENT_TOKENS[$name]:-}"
     [[ -z "$token" ]] && continue
-    channels="[\"general\",\"dm-$user\"]"
+    channels="[\"general\",\"$user\"]"
     curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$name/channels" \
         -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
@@ -611,7 +613,7 @@ done
 for human in "${HUMAN_NAMES[@]}"; do
     token="${HUMAN_TOKENS[$human]:-}"
     [[ -z "$token" ]] && continue
-    channels="[\"general\",\"dm-$OPS_USER\",\"dm-$COMMS_USER\"]"
+    channels="[\"general\",\"$OPS_USER\",\"$COMMS_USER\"]"
     curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$human/channels" \
         -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
@@ -664,8 +666,8 @@ for i in "${!AGENT_NAMES[@]}"; do
     curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$name/config" \
         -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
-        -d "{\"wake_channels\": \"dm-$user,general\"}" > /dev/null 2>&1 || true
-    log_ok "Wake channels → dm-$user,general"
+        -d "{\"wake_channels\": \"$user,general\"}" > /dev/null 2>&1 || true
+    log_ok "Wake channels → $user,general"
 
     # ── Write role-specific soul and memory ──
     TEMPLATE_DIR="$SCRIPT_DIR/templates/default"
@@ -1065,7 +1067,7 @@ echo "  Team provisioned!"
 echo "========================================"
 echo ""
 echo "Your ops agent is $OPS_AGENT_NAME ($OPS_USER). Ask it to add team members, create channels, manage infrastructure."
-echo "Your comms agent is $COMMS_AGENT_NAME ($COMMS_USER). It handles Telegram, X, and email."
+echo "Your comms agent is $COMMS_AGENT_NAME ($COMMS_USER). It talks to you and the outside world via Telegram, X, and email."
 echo ""
 if [[ -n "$CLAUDE_TOKEN" ]]; then
     echo "========================================"
