@@ -3,7 +3,6 @@
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/fagents/fagents/main/install.sh | sudo bash
-#   curl -fsSL https://raw.githubusercontent.com/fagents/fagents/main/install.sh | sudo bash -s -- --template business
 #
 # Downloads fagents and runs install-team.sh with any arguments passed through.
 
