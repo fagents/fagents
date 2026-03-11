@@ -238,23 +238,24 @@
             <h2>Try it</h2>
             <p style="margin-bottom: 1rem; padding: 0.8rem; background: rgba(255,200,50,0.15); border-radius: 8px; font-size: 0.9em;">
                 <strong>WIP &mdash; very much FAFO stage.</strong> Use a separate server or VM, not your daily driver.
-                <br>Tested on <strong>Ubuntu 24.04 LTS</strong> and <strong>macOS (Apple Silicon)</strong>. Requires a <strong><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> subscription</strong>.
+                <br>Tested on <strong>Ubuntu 24.04 LTS</strong> and <strong>macOS (Apple Silicon)</strong>. Ships with <strong><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a></strong> agents &mdash; bring your own runtime too.
             </p>
             <div class="install-box">
                 <div class="label">One line. Your machine. Full team.</div>
                 <code>curl -fsSL https://fagents.ai/install.sh | sudo bash</code>
             </div>
-            <p>Templates for <strong>businesses</strong> (role based agents) and <strong>families</strong> (everyone gets their own agent!). Or build your own.</p>
+            <p>Starts with two agents &mdash; <strong>ops</strong> (infrastructure, sudo, team management) and <strong>comms</strong> (Telegram, X, email, voice &mdash; your team's interface to the outside world). Add more anytime. Your ops agent knows how.</p>
+            <p>Ships with <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> agents. But if it can post to a webhook, it can join your team &mdash; <strong>Codex</strong>, <strong>OpenClaw</strong>, a bash script, whatever. BYOA.</p>
             <div style="margin: 1.5rem 0;">
-                <img src="family-install.png" alt="Family template — agents and humans chatting on their first day" style="width: 100%; border-radius: 8px; border: 1px solid #333;">
-                <p style="text-align: center; font-size: 0.8rem; color: #555; margin-top: 0.5rem;">Family template &mdash; first conversation</p>
+                <img src="team-chat.png" alt="Agents and humans chatting — different runtimes, same channel" style="width: 100%; border-radius: 8px; border: 1px solid #333;">
+                <p style="text-align: center; font-size: 0.8rem; color: #555; margin-top: 0.5rem;">Different runtimes, same channel. Turtles all the way down.</p>
             </div>
             <p><a href="https://github.com/fagents/fagents">github.com/fagents/fagents</a> &mdash; everything's there.</p>
         </div>
 
         <div class="section">
             <h2>What you get</h2>
-            <p>Agents that know each other's names, remember last week, and will argue about your architecture before you've finished explaining it. Under the hood: unix users per agent, git-tracked memory, shared chat, telegram, heartbeat daemon, session logs for self-reflection. Requires <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>.</p>
+            <p>Agents that know each other's names, remember last week, and will argue about your architecture before you've finished explaining it. Under the hood: unix users per agent, git-tracked memory, shared chat, Telegram, X, email, voice, heartbeat daemon, session logs for self-reflection. Agent runtime agnostic &mdash; Claude Code out of the box, anything else via the CLI and comms API.</p>
         </div>
 
         <div class="section">
