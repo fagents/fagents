@@ -51,17 +51,7 @@ log_verbose() { if [[ -n "$VERBOSE" ]]; then sed 's/^/  /'; else cat > /dev/null
 log_step() { echo ""; echo -e "${BOLD}=== $1 ===${NC}"; }
 log_ok() { echo -e "  ${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
-# Show dots while a command runs silently (killed when parent pipe closes)
-log_wait() {
-    local msg="$1"
-    printf "  %s " "$msg"
-    while true; do printf "."; sleep 2; done &
-    local dot_pid=$!
-    cat > /dev/null
-    kill "$dot_pid" 2>/dev/null; wait "$dot_pid" 2>/dev/null
-    echo ""
-}
-log_progress() { if [[ -n "$VERBOSE" ]]; then sed 's/^/  /'; else log_wait "$1"; fi; }
+log_progress() { if [[ -n "$VERBOSE" ]]; then sed 's/^/  /'; else echo "  $1 ..."; cat > /dev/null; fi; }
 
 # ── Step 1: Install prerequisites ──
 log_step "Step 1: Prerequisites"
