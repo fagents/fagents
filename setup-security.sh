@@ -51,11 +51,22 @@ log_verbose() { if [[ -n "$VERBOSE" ]]; then sed 's/^/  /'; else cat > /dev/null
 log_step() { echo ""; echo -e "${BOLD}=== $1 ===${NC}"; }
 log_ok() { echo -e "  ${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
+# Show dots while a command runs silently (killed when parent pipe closes)
+log_wait() {
+    local msg="$1"
+    printf "  %s " "$msg"
+    while true; do printf "."; sleep 2; done &
+    local dot_pid=$!
+    cat > /dev/null
+    kill "$dot_pid" 2>/dev/null; wait "$dot_pid" 2>/dev/null
+    echo ""
+}
+log_progress() { if [[ -n "$VERBOSE" ]]; then sed 's/^/  /'; else log_wait "$1"; fi; }
 
 # ── Step 1: Install prerequisites ──
 log_step "Step 1: Prerequisites"
-apt-get update 2>&1 | log_verbose
-apt-get install -y curl git jq python3 openssh-server fail2ban unattended-upgrades 2>&1 | log_verbose
+apt-get update 2>&1 | log_progress "Updating package lists"
+apt-get install -y curl git jq python3 openssh-server fail2ban unattended-upgrades 2>&1 | log_progress "Installing packages"
 log_ok "Packages installed (curl, git, jq, python3, openssh-server, fail2ban, unattended-upgrades)"
 
 # ── Step 2: SSH key setup ──
@@ -163,7 +174,7 @@ log_ok "Auto security updates enabled (reboot at 04:00 if needed)"
 # ── Step 7: Audit logging ──
 if [[ -z "$SKIP_AUDIT" ]]; then
     log_step "Step 7: Audit logging"
-    apt-get install -y auditd audispd-plugins 2>&1 | log_verbose
+    apt-get install -y auditd audispd-plugins 2>&1 | log_progress "Installing audit tools"
     tee /etc/audit/rules.d/fagents-hardening.rules > /dev/null <<'EOF'
 # Authentication and authorization
 -w /etc/passwd -p wa -k identity
