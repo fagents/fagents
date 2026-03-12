@@ -241,9 +241,7 @@ if [[ "${enable_telegram,,}" =~ ^y ]]; then
             echo ""
             read -rp "    Press Enter after sending... "
             echo "    Waiting for auth code (up to 30s)..."
-            # Clear any old messages first
-            curl -sf --max-time 5 "https://api.telegram.org/bot${_tg_token}/getUpdates?timeout=0" > /dev/null 2>&1 || true
-            # Now poll for the auth code
+            # Single poll — search all messages for the auth code (don't clear first, user may have already sent it)
             _resp=$(curl -sf --max-time 35 "https://api.telegram.org/bot${_tg_token}/getUpdates?timeout=30" 2>/dev/null) || true
             _uid=$(echo "${_resp:-}" | jq -r --arg code "$_auth_code" '[.result[].message | select(.text == $code) | .from.id] | first // empty' 2>/dev/null)
             if [[ -n "$_uid" ]]; then
