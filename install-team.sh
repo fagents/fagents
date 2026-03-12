@@ -258,8 +258,8 @@ if [[ "${enable_telegram,,}" =~ ^y ]]; then
     else
         echo ""
         echo "  Bot token (from BotFather):"
-        read -rsp "    Bot token: " _tg_token; echo ""
-        # Validate token before proceeding
+        read -rp "    Bot token: " _tg_token
+        # Validate token
         _bot_name=$(curl -sf --max-time 10 "https://api.telegram.org/bot${_tg_token}/getMe" 2>/dev/null | jq -r '.result.username // empty' 2>/dev/null)
         if [[ -z "$_bot_name" ]]; then
             log_warn "Bot token invalid or unreachable — skipping Telegram"
@@ -267,22 +267,27 @@ if [[ "${enable_telegram,,}" =~ ^y ]]; then
         else
             log_ok "Bot verified: @$_bot_name"
             TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]="$_tg_token"
+            # Generate one-time auth code
+            _auth_code="fagents-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' ')"
             echo ""
-            echo "  Lock the bot to your Telegram account."
-            echo "  Send /start to @$_bot_name now, then press Enter."
-            read -rp "    Press Enter when done... "
-            echo "    Waiting for message (up to 15s)..."
-            _resp=$(curl -sf --max-time 20 "https://api.telegram.org/bot${_tg_token}/getUpdates?timeout=15" 2>/dev/null) || true
-        fi
-        if [[ -n "$_tg_token" ]]; then
-            _uid=$(echo "${_resp:-}" | jq -r '[.result[].message.from.id // empty] | unique | first // empty' 2>/dev/null)
+            echo "  Link your Telegram account:"
+            echo "  1. Open @$_bot_name in Telegram"
+            echo "  2. Send this exact message:  $_auth_code"
+            echo ""
+            read -rp "    Press Enter after sending... "
+            echo "    Waiting for auth code (up to 30s)..."
+            # Clear any old messages first
+            curl -sf --max-time 5 "https://api.telegram.org/bot${_tg_token}/getUpdates?timeout=0" > /dev/null 2>&1 || true
+            # Now poll for the auth code
+            _resp=$(curl -sf --max-time 35 "https://api.telegram.org/bot${_tg_token}/getUpdates?timeout=30" 2>/dev/null) || true
+            _uid=$(echo "${_resp:-}" | jq -r --arg code "$_auth_code" '[.result[].message | select(.text == $code) | .from.id] | first // empty' 2>/dev/null)
             if [[ -n "$_uid" ]]; then
+                _uname=$(echo "$_resp" | jq -r --arg code "$_auth_code" '[.result[].message | select(.text == $code) | .from.username] | first // empty' 2>/dev/null)
                 TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]="$_uid"
-                _uname=$(echo "$_resp" | jq -r '[.result[].message.from.username // empty] | first // empty' 2>/dev/null)
-                log_ok "Locked to user ${_uname:-$_uid} (ID: $_uid)"
+                log_ok "Verified! Locked to ${_uname:-user} (ID: $_uid)"
             else
                 TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]="NONE"
-                log_warn "No messages found — bot will reject all messages until TELEGRAM_ALLOWED_IDS is set"
+                log_warn "Auth code not received — bot will reject all messages until TELEGRAM_ALLOWED_IDS is set"
             fi
         fi
     fi
