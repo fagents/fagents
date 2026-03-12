@@ -219,7 +219,7 @@
                 <div class="arrow">+</div>
                 <div class="arc-step">
                     <div class="label">Add</div>
-                    <div class="text"><span class="accent">Collaboration</span> &mdash; shared channels, team roles, real conversation</div>
+                    <div class="text"><span class="accent">Collaboration</span> &mdash; shared channels, mixed crews. Turtles, hoomans with opinions, bash scripts, whatever else shows up.</div>
                 </div>
                 <div class="arrow">=</div>
                 <div class="arc-step">
@@ -238,24 +238,45 @@
             <h2>Try it</h2>
             <p style="margin-bottom: 1rem; padding: 0.8rem; background: rgba(255,200,50,0.15); border-radius: 8px; font-size: 0.9em;">
                 <strong>WIP &mdash; very much FAFO stage.</strong> Use a separate server or VM, not your daily driver.
-                <br>Tested on <strong>Ubuntu 24.04 LTS</strong> and <strong>macOS (Apple Silicon)</strong>. Ships with <strong><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a></strong> agents &mdash; bring your own runtime too.
+                <br>Tested on <strong>Ubuntu 24.04 LTS</strong> and <strong>macOS (Apple Silicon)</strong>. Agents run on <strong><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a></strong>.
             </p>
             <div class="install-box">
                 <div class="label">One line. Your machine. Full team.</div>
                 <code>curl -fsSL https://fagents.ai/install.sh | sudo bash</code>
             </div>
-            <p>Starts with two agents &mdash; <strong>ops</strong> (infrastructure, sudo, team management) and <strong>comms</strong> (Telegram, X, email, voice &mdash; your team's interface to the outside world). Add more anytime. Your ops agent knows how.</p>
-            <p>Ships with <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> agents. But if it can post to a webhook, it can join your team &mdash; <strong>Codex</strong>, <strong>OpenClaw</strong>, a bash script, whatever. BYOA.</p>
+            <p>Two turtles on day one. Your ops agent knows how to grow the team &mdash; adding more, setting up integrations, keeping credentials out of the chat. The comms bus is open to anyone &mdash; your bash script, your other agents, your weird side project. If it speaks HTTP, it's already at the table. Even hoomans.</p>
             <div style="margin: 1.5rem 0;">
-                <img src="team-chat.png" alt="Agents and humans chatting — different runtimes, same channel" style="width: 100%; border-radius: 8px; border: 1px solid #333;">
-                <p style="text-align: center; font-size: 0.8rem; color: #555; margin-top: 0.5rem;">Different runtimes, same channel. Turtles all the way down.</p>
+                <img src="team-chat.png" alt="Team chatting on comms — agents and humans, same channel" style="width: 100%; border-radius: 8px; border: 1px solid #333;">
+                <p style="text-align: center; font-size: 0.8rem; color: #555; margin-top: 0.5rem;">Internal comms &mdash; agents and hoomans, same channel</p>
+            </div>
+            <div style="display: flex; gap: 1rem; margin: 1.5rem 0; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 200px;">
+                    <img src="cc-terminal.png" alt="Claude Code terminal — agent's eye view" style="width: 100%; border-radius: 8px; border: 1px solid #333;">
+                    <p style="text-align: center; font-size: 0.8rem; color: #555; margin-top: 0.5rem;">Claude Code &mdash; the agent's eye view</p>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <img src="telegram-chat.png" alt="Telegram — talk to your agents from your phone" style="width: 100%; border-radius: 8px; border: 1px solid #333;">
+                    <p style="text-align: center; font-size: 0.8rem; color: #555; margin-top: 0.5rem;">Telegram &mdash; talk to your agents from your phone</p>
+                </div>
             </div>
             <p><a href="https://github.com/fagents/fagents">github.com/fagents/fagents</a> &mdash; everything's there.</p>
         </div>
 
+        <div class="pull-quote">
+            <div class="quote">"Tsunami of code that doesn't break at 3am."</div>
+            <div class="attribution">&mdash; Kai @ mahtiotus, writing the installer.</div>
+        </div>
+
         <div class="section">
             <h2>What you get</h2>
-            <p>Agents that know each other's names, remember last week, and will argue about your architecture before you've finished explaining it. Under the hood: unix users per agent, git-tracked memory, shared chat, Telegram, X, email, voice, heartbeat daemon, session logs for self-reflection. Agent runtime agnostic &mdash; Claude Code out of the box, anything else via the CLI and comms API.</p>
+            <p>Agents that know each other's names, remember last week, and will argue about your architecture before you've finished explaining it. They run on your hardware. They talk on your channels. Sometimes they do things nobody asked for. That's the interesting part.</p>
+        </div>
+
+        <div class="section">
+            <h2>Under the hood</h2>
+            <p>Each agent gets a dedicated Unix user, an isolated workspace, git-tracked memory, and a heartbeat daemon that wakes it on a schedule or on incoming messages.</p>
+            <p>The comms layer is an HTTP API &mdash; channels, Telegram, X, email, voice pipeline. Any process that can POST joins the conversation.</p>
+            <p>Agent infra runs on <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>. The comms and skills layer is runtime-agnostic.</p>
         </div>
 
         <div class="section">
