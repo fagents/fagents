@@ -259,20 +259,31 @@ if [[ "${enable_telegram,,}" =~ ^y ]]; then
         echo ""
         echo "  Bot token (from BotFather):"
         read -rsp "    Bot token: " _tg_token; echo ""
-        TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]="$_tg_token"
-        echo ""
-        echo "  Lock the bot to your Telegram account."
-        echo "  Send /start to the bot now, then press Enter."
-        read -rp "    Press Enter when done... "
-        _resp=$(curl -sf --max-time 10 "https://api.telegram.org/bot${_tg_token}/getUpdates?timeout=0" 2>/dev/null) || true
-        _uid=$(echo "$_resp" | jq -r '[.result[].message.from.id // empty] | unique | first // empty' 2>/dev/null)
-        if [[ -n "$_uid" ]]; then
-            TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]="$_uid"
-            _uname=$(echo "$_resp" | jq -r '[.result[].message.from.username // empty] | first // empty' 2>/dev/null)
-            log_ok "Locked to user ${_uname:-$_uid} (ID: $_uid)"
+        # Validate token before proceeding
+        _bot_name=$(curl -sf --max-time 10 "https://api.telegram.org/bot${_tg_token}/getMe" 2>/dev/null | jq -r '.result.username // empty' 2>/dev/null)
+        if [[ -z "$_bot_name" ]]; then
+            log_warn "Bot token invalid or unreachable — skipping Telegram"
+            _tg_token=""
         else
-            TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]="NONE"
-            log_warn "No messages found — bot locked (no one can message)"
+            log_ok "Bot verified: @$_bot_name"
+            TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]="$_tg_token"
+            echo ""
+            echo "  Lock the bot to your Telegram account."
+            echo "  Send /start to @$_bot_name now, then press Enter."
+            read -rp "    Press Enter when done... "
+            echo "    Waiting for message (up to 15s)..."
+            _resp=$(curl -sf --max-time 20 "https://api.telegram.org/bot${_tg_token}/getUpdates?timeout=15" 2>/dev/null) || true
+        fi
+        if [[ -n "$_tg_token" ]]; then
+            _uid=$(echo "${_resp:-}" | jq -r '[.result[].message.from.id // empty] | unique | first // empty' 2>/dev/null)
+            if [[ -n "$_uid" ]]; then
+                TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]="$_uid"
+                _uname=$(echo "$_resp" | jq -r '[.result[].message.from.username // empty] | first // empty' 2>/dev/null)
+                log_ok "Locked to user ${_uname:-$_uid} (ID: $_uid)"
+            else
+                TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]="NONE"
+                log_warn "No messages found — bot will reject all messages until TELEGRAM_ALLOWED_IDS is set"
+            fi
         fi
     fi
 
