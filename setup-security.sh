@@ -47,16 +47,32 @@ fi
 
 # ── Output helpers ──
 BOLD='\033[1m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; NC='\033[0m'
-log_verbose() { if [[ -n "$VERBOSE" ]]; then sed 's/^/  /'; else cat > /dev/null; fi; }
 log_step() { echo ""; echo -e "${BOLD}=== $1 ===${NC}"; }
 log_ok() { echo -e "  ${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
-log_progress() { if [[ -n "$VERBOSE" ]]; then sed 's/^/  /'; else echo "  $1 ..."; cat > /dev/null; fi; }
+# Run a command, show output only in verbose mode. No pipes — avoids pipefail.
+run() {
+    if [[ -n "$VERBOSE" ]]; then
+        "$@" 2>&1 | sed 's/^/  /'
+    else
+        "$@" > /dev/null 2>&1
+    fi
+}
+# Same but with a progress message when not verbose
+run_msg() {
+    local msg="$1"; shift
+    if [[ -n "$VERBOSE" ]]; then
+        "$@" 2>&1 | sed 's/^/  /'
+    else
+        echo "  $msg ..."
+        "$@" > /dev/null 2>&1
+    fi
+}
 
 # ── Step 1: Install prerequisites ──
 log_step "Step 1: Prerequisites"
-apt-get update 2>&1 | log_progress "Updating package lists"
-apt-get install -y curl git jq python3 openssh-server fail2ban unattended-upgrades 2>&1 | log_progress "Installing packages"
+run_msg "Updating package lists" apt-get update
+run_msg "Installing packages" apt-get install -y curl git jq python3 openssh-server fail2ban unattended-upgrades
 log_ok "Packages installed (curl, git, jq, python3, openssh-server, fail2ban, unattended-upgrades)"
 
 # ── Step 2: SSH key setup ──
@@ -104,28 +120,29 @@ sed -i 's/^#\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_co
 if ! grep -qxF "AllowUsers $CALLING_USER" /etc/ssh/sshd_config; then
     echo "AllowUsers $CALLING_USER" >> /etc/ssh/sshd_config
 fi
-systemctl enable ssh 2>&1 | log_verbose
-systemctl restart ssh 2>&1 | log_verbose
+run systemctl enable ssh
+run systemctl restart ssh
 log_ok "SSH hardened (root login disabled, password auth disabled, key-only)"
 log_warn "Only $CALLING_USER can SSH in. Agents use localhost, not SSH."
 
 # ── Step 4: Firewall ──
 if [[ -z "$SKIP_FIREWALL" ]]; then
     log_step "Step 4: Firewall (UFW)"
-    if ufw status | grep -q "Status: active"; then
+    if ufw status 2>/dev/null | grep -q "Status: active"; then
         log_warn "UFW already active — resetting to fagents defaults"
     fi
-    ufw --force reset 2>&1 | log_verbose
-    ufw default deny incoming 2>&1 | log_verbose
-    ufw default deny outgoing 2>&1 | log_verbose
-    ufw limit in 22/tcp 2>&1 | log_verbose        # SSH (rate-limited)
-    ufw allow out 53 2>&1 | log_verbose            # DNS
-    ufw allow out 80/tcp 2>&1 | log_verbose        # HTTP
-    ufw allow out 443/tcp 2>&1 | log_verbose       # HTTPS
-    ufw allow out 22/tcp 2>&1 | log_verbose        # SSH outbound (git, tunnels)
-    # Comms server: localhost only (agents connect locally)
-    ufw allow in on lo to any port "$COMMS_PORT" 2>&1 | log_verbose
-    ufw --force enable 2>&1 | log_verbose
+    run_msg "Configuring firewall rules" bash -c "
+        ufw --force reset
+        ufw default deny incoming
+        ufw default deny outgoing
+        ufw limit in 22/tcp
+        ufw allow out 53
+        ufw allow out 80/tcp
+        ufw allow out 443/tcp
+        ufw allow out 22/tcp
+        ufw allow in on lo to any port $COMMS_PORT
+        ufw --force enable
+    "
     log_ok "Firewall enabled (deny all, allow SSH/HTTP/HTTPS/DNS out, SSH in rate-limited)"
     log_ok "Comms port $COMMS_PORT allowed on localhost only"
 else
@@ -142,8 +159,8 @@ maxretry = 5
 bantime = 3600
 findtime = 600
 EOF
-systemctl enable fail2ban 2>&1 | log_verbose
-systemctl restart fail2ban 2>&1 | log_verbose
+run systemctl enable fail2ban
+run systemctl restart fail2ban
 log_ok "Fail2ban configured (SSH jail: 5 retries, 1hr ban)"
 
 # ── Step 6: Automatic security updates ──
@@ -157,14 +174,14 @@ tee /etc/apt/apt.conf.d/50unattended-upgrades-local > /dev/null <<'EOF'
 Unattended-Upgrade::Automatic-Reboot "true";
 Unattended-Upgrade::Automatic-Reboot-Time "04:00";
 EOF
-systemctl enable unattended-upgrades 2>&1 | log_verbose
-systemctl restart unattended-upgrades 2>&1 | log_verbose
+run systemctl enable unattended-upgrades
+run systemctl restart unattended-upgrades
 log_ok "Auto security updates enabled (reboot at 04:00 if needed)"
 
 # ── Step 7: Audit logging ──
 if [[ -z "$SKIP_AUDIT" ]]; then
     log_step "Step 7: Audit logging"
-    apt-get install -y auditd audispd-plugins 2>&1 | log_progress "Installing audit tools"
+    run_msg "Installing audit tools" apt-get install -y auditd audispd-plugins
     tee /etc/audit/rules.d/fagents-hardening.rules > /dev/null <<'EOF'
 # Authentication and authorization
 -w /etc/passwd -p wa -k identity
@@ -189,9 +206,9 @@ if [[ -z "$SKIP_AUDIT" ]]; then
 # Sudo usage
 -a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=4294967295 -k sudo_commands
 EOF
-    augenrules --load 2>&1 | log_verbose
-    systemctl enable auditd 2>&1 | log_verbose
-    systemctl restart auditd 2>&1 | log_verbose
+    run augenrules --load
+    run systemctl enable auditd
+    run systemctl restart auditd
     log_ok "Audit logging enabled (identity, SSH, sudo, cron, firewall)"
 else
     log_step "Step 7: Audit logging (skipped)"
@@ -227,7 +244,7 @@ net.ipv4.ip_forward = 0
 kernel.dmesg_restrict = 1
 kernel.kptr_restrict = 2
 EOF
-sysctl --system 2>&1 | log_verbose
+run sysctl --system
 log_ok "Kernel hardened (SYN cookies, rp_filter, no redirects, no forwarding)"
 
 # ── Step 9: Git defaults ──
