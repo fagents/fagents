@@ -97,6 +97,12 @@ log_ok() { echo -e "  ${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
 log_err() { echo -e "  ${RED}✗${NC} $1"; }
 
+# ── Memory check ──
+_mem_mb=$(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1048576 ))
+if [[ "$_mem_mb" -gt 0 && "$_mem_mb" -lt 2048 ]]; then
+    log_warn "Low memory: ${_mem_mb}MB — Claude Code install may fail (OOM). 2GB+ recommended."
+fi
+
 # ── Prerequisites (check only — can't brew install as root) ──
 _missing_prereqs=()
 for cmd in git curl python3 jq; do
