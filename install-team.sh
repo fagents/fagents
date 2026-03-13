@@ -67,6 +67,22 @@ fi
 # ── Output helpers ──
 BOLD='\033[1m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; RED='\033[0;31m'; NC='\033[0m'
 log_verbose() { if [[ -n "$VERBOSE" ]]; then sed 's/^/  /'; else cat > /dev/null; fi; }
+# run/run_msg: safe replacements for `cmd 2>&1 | log_verbose` which crashes
+# with set -euo pipefail when cmd returns non-zero
+run() {
+    if [[ -n "${VERBOSE:-}" ]]; then
+        "$@" 2>&1 | sed 's/^/  /' || true
+    else
+        "$@" > /dev/null 2>&1 || true
+    fi
+}
+run_fatal() {
+    if [[ -n "${VERBOSE:-}" ]]; then
+        "$@" 2>&1 | sed 's/^/  /'
+    else
+        "$@" > /dev/null 2>&1
+    fi
+}
 log_step() { echo ""; echo -e "${BOLD}=== $1 ===${NC}"; }
 log_ok() { echo -e "  ${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
@@ -80,8 +96,8 @@ done
 if [[ ${#_missing_prereqs[@]} -gt 0 ]]; then
     echo ""
     echo "Installing prerequisites: ${_missing_prereqs[*]}"
-    apt-get update -qq 2>&1 | log_verbose
-    apt-get install -y "${_missing_prereqs[@]}" 2>&1 | log_verbose
+    run apt-get update -qq
+    run apt-get install -y "${_missing_prereqs[@]}"
     for cmd in "${_missing_prereqs[@]}"; do
         if command -v "$cmd" &>/dev/null; then
             log_ok "Installed $cmd"
@@ -508,7 +524,7 @@ for user in "$OPS_USER" "$COMMS_USER"; do
     if [[ -d "$repo_path" ]]; then
         log_ok "Repo $user.git already exists"
     else
-        su - "$INFRA_USER" -c "git init --bare -b main ~/repos/$user.git" 2>&1 | log_verbose
+        run su - "$INFRA_USER" -c "git init --bare -b main ~/repos/$user.git"
         log_ok "Created bare repo: $user.git"
     fi
 done
@@ -655,7 +671,7 @@ for i in "${!AGENT_NAMES[@]}"; do
     echo ""
     echo "  $name ($user):"
 
-    su - "$user" -c "
+    _out=$(su - "$user" -c "
         export NONINTERACTIVE=1
         export AGENT_NAME='$name'
         export WORKSPACE='$user'
@@ -666,7 +682,8 @@ for i in "${!AGENT_NAMES[@]}"; do
         export AUTONOMY_DIR='$SHARED_AUTONOMY_WORKING'
         export AUTONOMY_SHARED=1
         bash '$INSTALL_SCRIPT'
-    " 2>&1 | log_verbose
+    " 2>&1) || true
+    [[ -n "${VERBOSE:-}" ]] && echo "$_out" | sed 's/^/  /'
 
     # Set up git remote pointing to local bare repo
     agent_home=$(eval echo "~$user")
@@ -749,8 +766,8 @@ if [[ -n "$EMAIL_ENABLED" ]]; then
     # Ensure Node.js is available
     if ! command -v node &>/dev/null; then
         echo "  Installing Node.js..."
-        curl -fsSL https://deb.nodesource.com/setup_20.x 2>/dev/null | bash - 2>&1 | log_verbose
-        apt-get install -y nodejs 2>&1 | log_verbose
+        run bash -c "curl -fsSL https://deb.nodesource.com/setup_20.x 2>/dev/null | bash -"
+        run apt-get install -y nodejs
         if command -v node &>/dev/null; then
             log_ok "Installed Node.js $(node --version)"
         else
@@ -787,36 +804,42 @@ EMAILEOF
 fi
 
 # ── Step 5c: Telegram setup (comms agent) ──
-if [[ -n "${TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]:-}" ]]; then
-    log_step "Step 5c: Telegram setup"
+# Always create agent dir, telegram.env placeholder, and sudoers — even if
+# Telegram was skipped during install. This way adding the token post-install
+# just works without needing to manually fix sudoers.
+log_step "Step 5c: Telegram setup"
 
-    mkdir -p "$INFRA_HOME/.agents"
-    agent_dir="$INFRA_HOME/.agents/$COMMS_USER"
-    mkdir -p "$agent_dir"
+mkdir -p "$INFRA_HOME/.agents"
+agent_dir="$INFRA_HOME/.agents/$COMMS_USER"
+mkdir -p "$agent_dir"
 
-    cat > "$agent_dir/telegram.env" <<TGEOF
+cat > "$agent_dir/telegram.env" <<TGEOF
 TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]:-}
 TELEGRAM_ALLOWED_IDS=${TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]:-}
 TGEOF
 
-    if [[ -n "$OPENAI_API_KEY" ]]; then
-        cat > "$agent_dir/openai.env" <<OAEOF
+if [[ -n "$OPENAI_API_KEY" ]]; then
+    cat > "$agent_dir/openai.env" <<OAEOF
 OPENAI_API_KEY=$OPENAI_API_KEY
 OAEOF
-        chmod 600 "$agent_dir/openai.env"
-    fi
+    chmod 600 "$agent_dir/openai.env"
+fi
 
-    chown -R "$INFRA_USER:fagent" "$agent_dir"
-    chmod 700 "$agent_dir"
-    chmod 600 "$agent_dir/telegram.env"
+chown -R "$INFRA_USER:fagent" "$agent_dir"
+chmod 700 "$agent_dir"
+chmod 600 "$agent_dir/telegram.env"
+
+if [[ -n "${TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]:-}" ]]; then
     log_ok "Telegram credentials stored in $INFRA_HOME/.agents/$COMMS_USER/"
+else
+    log_warn "Telegram skipped — add token to $INFRA_HOME/.agents/$COMMS_USER/telegram.env later"
+fi
 
-    # Sudoers for comms agent (not needed if comms user somehow had full sudo, but it shouldn't)
-    if [[ -n "$CLI_DIR" ]] && [[ -d "$CLI_DIR" ]]; then
-        echo "$COMMS_USER ALL=($INFRA_USER) NOPASSWD: $CLI_DIR/telegram.sh, $CLI_DIR/tts-speak.sh, $CLI_DIR/stt-transcribe.sh" > "/etc/sudoers.d/${COMMS_USER}-telegram"
-        chmod 440 "/etc/sudoers.d/${COMMS_USER}-telegram"
-        log_ok "Sudoers rules created for telegram.sh, tts-speak.sh, stt-transcribe.sh"
-    fi
+# Sudoers for comms agent — always create so post-install token addition works
+if [[ -n "$CLI_DIR" ]] && [[ -d "$CLI_DIR" ]]; then
+    echo "$COMMS_USER ALL=($INFRA_USER) NOPASSWD: $CLI_DIR/telegram.sh, $CLI_DIR/tts-speak.sh, $CLI_DIR/stt-transcribe.sh" > "/etc/sudoers.d/${COMMS_USER}-telegram"
+    chmod 440 "/etc/sudoers.d/${COMMS_USER}-telegram"
+    log_ok "Sudoers rules created for telegram.sh, tts-speak.sh, stt-transcribe.sh"
 fi
 
 # ── Step 5d: X (Twitter) setup (comms agent) ──
@@ -864,7 +887,7 @@ if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
             log_ok "$name: Claude Code already installed"
         else
             echo "  $name: Installing Claude Code..."
-            su - "$user" -c "curl -fsSL https://claude.ai/install.sh | bash" 2>&1 | tail -3 | log_verbose
+            run su - "$user" -c "curl -fsSL https://claude.ai/install.sh | bash"
             if su - "$user" -c "command -v claude" &>/dev/null; then
                 log_ok "$name: Claude Code installed"
             else
