@@ -66,6 +66,12 @@ Updates `agents.json` and restarts fagents-mcp. Requires fagents-mcp to be insta
 - `__INFRA_HOME__/workspace/` — infra user's working copies (fagents-comms, fagents-autonomy, fagents-cli)
 - `__INFRA_HOME__/.agents/<username>/` — per-agent credential dirs (telegram.env, x.env, openai.env)
 
+### Deploying updates
+`DEPLOYLOG/` in the fagents repo root has everything you need:
+- `DEPLOYLOG/README.md` — how to check what's behind, pull repos, restart services
+- `DEPLOYLOG/YYYY-MM-DDTHHMMSS-<feature>.md` — step-by-step instructions for features that need more than a pull (new creds, sudoers, etc.)
+- Read the README first — it has the exact commands for pulling bare repos from GitHub and restarting services
+
 ### Credential gating
 Integration credentials (Telegram, X, email, OpenAI) live in `__INFRA_HOME__/.agents/<username>/`.
 - Owned by fagents:fagent, mode 700/600
