@@ -27,7 +27,13 @@ sudo /home/fagents/team/stop-fagents.sh    # stop everything
 
 Individual controls: `start-comms.sh`, `stop-comms.sh`, `start-team.sh`, `stop-team.sh` in the same directory.
 
-Post-install: `add-email.sh` (email setup). Updates: see `DEPLOYLOG/`.
+## Post-install
+
+```bash
+sudo /home/fagents/team/add-email.sh           # add email for an agent
+```
+
+Updates and feature deploys: see `DEPLOYLOG/README.md`.
 
 ## What is this
 
