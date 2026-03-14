@@ -1,12 +1,19 @@
 #!/bin/bash
 # add-email.sh — Add email credentials for an agent to fagents-mcp
 #
+# If fagents-mcp is not installed yet, does first-time setup (clone, build,
+# systemd service) via install-email.sh, then adds the agent.
+#
 # Interactive (human):  sudo bash add-email.sh
 # Non-interactive (agent): sudo bash add-email.sh --agent \
 #   --name AgentName --token TOKEN --from agent@example.com \
-#   --smtp-user user --smtp-pass pass --imap-user user --imap-pass pass
+#   --smtp-user user --smtp-pass pass --imap-user user --imap-pass pass \
+#   [--smtp-host smtp.example.com] [--imap-host imap.example.com] \
+#   [--smtp-port 587] [--imap-port 993] [--mcp-port 9755]
 #
-# Requires: jq, running fagents-mcp service
+# First-time setup also requires: --smtp-host, --imap-host (and optionally
+# --smtp-port, --imap-port, --mcp-port). These are stored in agents.json
+# and reused for subsequent agents.
 
 set -euo pipefail
 
@@ -14,10 +21,12 @@ INFRA_USER="fagents"
 INFRA_HOME=$(eval echo "~$INFRA_USER")
 MCP_DIR="$INFRA_HOME/workspace/fagents-mcp"
 AGENTS_JSON="$MCP_DIR/agents.json"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Parse flags ──
 AGENT_MODE=""
 NAME="" TOKEN="" FROM="" SMTP_USER="" SMTP_PASS="" IMAP_USER="" IMAP_PASS=""
+SMTP_HOST="" SMTP_PORT="" IMAP_HOST="" IMAP_PORT="" MCP_PORT=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -29,6 +38,11 @@ while [[ $# -gt 0 ]]; do
         --smtp-pass) SMTP_PASS="$2"; shift 2 ;;
         --imap-user) IMAP_USER="$2"; shift 2 ;;
         --imap-pass) IMAP_PASS="$2"; shift 2 ;;
+        --smtp-host) SMTP_HOST="$2"; shift 2 ;;
+        --smtp-port) SMTP_PORT="$2"; shift 2 ;;
+        --imap-host) IMAP_HOST="$2"; shift 2 ;;
+        --imap-port) IMAP_PORT="$2"; shift 2 ;;
+        --mcp-port)  MCP_PORT="$2"; shift 2 ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
@@ -39,21 +53,62 @@ if ! command -v jq &>/dev/null; then
     exit 1
 fi
 
+# ── Detect first-time setup ──
+FIRST_TIME=""
 if [[ ! -f "$AGENTS_JSON" ]]; then
-    echo "ERROR: $AGENTS_JSON not found — is fagents-mcp installed?" >&2
-    exit 1
-fi
-
-# ── Interactive prompts (human mode) ──
-if [[ -z "$AGENT_MODE" ]]; then
-    echo "Add email credentials for an agent"
+    FIRST_TIME=1
+    echo "fagents-mcp not installed — running first-time setup"
     echo ""
 
-    # Show existing agents
-    existing=$(jq -r '.agents | keys[]' "$AGENTS_JSON" 2>/dev/null || true)
-    if [[ -n "$existing" ]]; then
-        echo "Already configured: $existing"
+    # Need install-email.sh
+    INSTALL_EMAIL="$SCRIPT_DIR/install-email.sh"
+    if [[ ! -f "$INSTALL_EMAIL" ]]; then
+        # Try the fagents repo clone
+        INSTALL_EMAIL="$INFRA_HOME/workspace/fagents/install-email.sh"
+    fi
+    if [[ ! -f "$INSTALL_EMAIL" ]]; then
+        echo "ERROR: install-email.sh not found at $SCRIPT_DIR/ or $INFRA_HOME/workspace/fagents/" >&2
+        exit 1
+    fi
+
+    # Need node
+    if ! command -v node &>/dev/null; then
+        echo "ERROR: Node.js 18+ is required for fagents-mcp" >&2
+        echo "Install with: curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs" >&2
+        exit 1
+    fi
+
+    # Prompt for shared SMTP/IMAP config (first time only)
+    if [[ -z "$AGENT_MODE" ]]; then
+        [[ -z "$SMTP_HOST" ]] && read -rp "SMTP host (e.g. smtp.gmail.com): " SMTP_HOST
+        [[ -z "$SMTP_PORT" ]] && read -rp "SMTP port [587]: " SMTP_PORT
+        [[ -z "$IMAP_HOST" ]] && read -rp "IMAP host (e.g. imap.gmail.com): " IMAP_HOST
+        [[ -z "$IMAP_PORT" ]] && read -rp "IMAP port [993]: " IMAP_PORT
+        [[ -z "$MCP_PORT" ]]  && read -rp "MCP server port [9755]: " MCP_PORT
+    fi
+
+    SMTP_PORT="${SMTP_PORT:-587}"
+    IMAP_PORT="${IMAP_PORT:-993}"
+    MCP_PORT="${MCP_PORT:-9755}"
+
+    if [[ -z "$SMTP_HOST" || -z "$IMAP_HOST" ]]; then
+        echo "ERROR: --smtp-host and --imap-host are required for first-time setup" >&2
+        exit 1
+    fi
+fi
+
+# ── Prompt for agent credentials ──
+if [[ -z "$AGENT_MODE" ]]; then
+    if [[ -z "$FIRST_TIME" ]]; then
+        echo "Add email credentials for an agent"
         echo ""
+
+        # Show existing agents
+        existing=$(jq -r '.agents | keys[]' "$AGENTS_JSON" 2>/dev/null || true)
+        if [[ -n "$existing" ]]; then
+            echo "Already configured: $existing"
+            echo ""
+        fi
     fi
 
     [[ -z "$NAME" ]]      && read -rp "Agent name (comms name, e.g. Dev): " NAME
@@ -65,7 +120,7 @@ if [[ -z "$AGENT_MODE" ]]; then
     [[ -z "$IMAP_PASS" ]] && read -rsp "IMAP password: " IMAP_PASS && echo ""
 fi
 
-# ── Validate inputs ──
+# ── Validate agent inputs ──
 for var in NAME TOKEN FROM SMTP_USER SMTP_PASS IMAP_USER IMAP_PASS; do
     if [[ -z "${!var}" ]]; then
         echo "ERROR: --$(echo "$var" | tr '[:upper:]' '[:lower:]' | tr '_' '-') is required" >&2
@@ -73,7 +128,26 @@ for var in NAME TOKEN FROM SMTP_USER SMTP_PASS IMAP_USER IMAP_PASS; do
     fi
 done
 
-# ── Check if agent already exists ──
+# ── First-time: run install-email.sh ──
+if [[ -n "$FIRST_TIME" ]]; then
+    echo ""
+    SMTP_HOST="$SMTP_HOST" \
+    SMTP_PORT="$SMTP_PORT" \
+    IMAP_HOST="$IMAP_HOST" \
+    IMAP_PORT="$IMAP_PORT" \
+    bash "$INSTALL_EMAIL" \
+        --port "$MCP_PORT" \
+        --dir "$MCP_DIR" \
+        --user "$INFRA_USER" \
+        --agent "$NAME:$TOKEN:$FROM:$SMTP_USER:$SMTP_PASS:$IMAP_USER:$IMAP_PASS"
+
+    echo "Email configured for $NAME"
+    exit 0
+fi
+
+# ── Existing install: update agents.json ──
+
+# Check if agent already exists
 if jq -e --arg name "$NAME" '.agents[$name]' "$AGENTS_JSON" &>/dev/null; then
     if [[ -z "$AGENT_MODE" ]]; then
         read -rp "$NAME already has email configured. Overwrite? [y/N]: " confirm
@@ -83,7 +157,6 @@ if jq -e --arg name "$NAME" '.agents[$name]' "$AGENTS_JSON" &>/dev/null; then
     fi
 fi
 
-# ── Update agents.json ──
 tmp=$(mktemp)
 jq --arg name "$NAME" \
    --arg token "$TOKEN" \

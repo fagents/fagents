@@ -55,7 +55,9 @@ sudo bash __INFRA_HOME__/team/add-email.sh --agent \
   --name AgentName --token COMMS_TOKEN --from agent@example.com \
   --smtp-user user --smtp-pass pass --imap-user user --imap-pass pass
 ```
-Updates `agents.json` and restarts fagents-mcp. Requires fagents-mcp to be installed first.
+If fagents-mcp is not installed yet, the script handles first-time setup automatically
+(clone, build, systemd service). First run also needs: `--smtp-host`, `--imap-host`,
+and optionally `--smtp-port` (default 587), `--imap-port` (993), `--mcp-port` (9755).
 
 ### Agent installer
 `install-agent.sh` lives in the fagents repo (cloned during initial install). For adding agents post-install, follow the manual steps in "How to add a new agent" above.
