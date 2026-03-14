@@ -948,6 +948,30 @@ cp "$SCRIPT_DIR/add-email.sh" "$TEAM_DIR/add-email.sh"
 chmod +x "$TEAM_DIR/add-email.sh"
 
 chown -R "$INFRA_USER:fagent" "$TEAM_DIR"
+
+# ── Launchd plist for boot persistence ──
+cat > /Library/LaunchDaemons/ai.fagents.plist << PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.fagents</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$TEAM_DIR/start-fagents.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$INFRA_HOME/fagents-boot.log</string>
+    <key>StandardErrorPath</key>
+    <string>$INFRA_HOME/fagents-boot.log</string>
+</dict>
+</plist>
+PLISTEOF
+chmod 644 /Library/LaunchDaemons/ai.fagents.plist
+log_ok "Launchd plist created — team starts on boot"
 echo ""
 
 # ── First posts on comms ──

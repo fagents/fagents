@@ -86,6 +86,13 @@ echo ""
 # ── Step 1: Stop processes ──
 echo "=== Step 1: Stop processes ==="
 
+# Remove launchd plist
+if [[ -f /Library/LaunchDaemons/ai.fagents.plist ]]; then
+    launchctl bootout system /Library/LaunchDaemons/ai.fagents.plist 2>/dev/null || true
+    rm -f /Library/LaunchDaemons/ai.fagents.plist
+    echo "  Removed launchd plist"
+fi
+
 # Stop comms server + infra processes
 if id "$INFRA_USER" &>/dev/null; then
     if pgrep -u "$INFRA_USER" &>/dev/null; then

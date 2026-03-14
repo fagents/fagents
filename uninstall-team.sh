@@ -79,6 +79,20 @@ echo ""
 # ── Step 1: Stop processes ──
 echo "=== Step 1: Stop processes ==="
 
+# Stop fagents systemd service
+if systemctl is-active --quiet fagents 2>/dev/null; then
+    systemctl stop fagents
+    echo "  Stopped fagents service"
+fi
+if systemctl is-enabled --quiet fagents 2>/dev/null; then
+    systemctl disable fagents 2>/dev/null || true
+fi
+if [[ -f /etc/systemd/system/fagents.service ]]; then
+    rm -f /etc/systemd/system/fagents.service
+    systemctl daemon-reload 2>/dev/null || true
+    echo "  Removed fagents service"
+fi
+
 # Stop fagents-mcp systemd service
 if systemctl is-active --quiet fagents-mcp 2>/dev/null; then
     systemctl stop fagents-mcp

@@ -1089,6 +1089,25 @@ cp "$SCRIPT_DIR/add-email.sh" "$TEAM_DIR/add-email.sh"
 chmod +x "$TEAM_DIR/add-email.sh"
 
 chown -R "$INFRA_USER:fagent" "$TEAM_DIR"
+
+# ── Systemd service for boot persistence ──
+cat > /etc/systemd/system/fagents.service << SVCEOF
+[Unit]
+Description=fagents — autonomous agent team
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=$TEAM_DIR/start-fagents.sh
+ExecStop=$TEAM_DIR/stop-fagents.sh
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+systemctl daemon-reload
+systemctl enable fagents --quiet 2>/dev/null
+log_ok "Systemd service created — team starts on boot"
 echo ""
 
 # ── First posts on comms ──
