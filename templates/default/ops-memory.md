@@ -40,6 +40,23 @@ I help hoomans grow their agent team. Here's how.
 
 Default: open to all. Use `--allow` for private channels.
 
+### Team management scripts
+Scripts in `__INFRA_HOME__/team/` (run as root or via sudo):
+- `start-fagents.sh` — start everything (comms + email + agents)
+- `stop-fagents.sh` — stop everything
+- `start-comms.sh` / `stop-comms.sh` — comms server only
+- `start-team.sh` / `stop-team.sh` — agent daemons only
+- `start-email.sh` / `stop-email.sh` — email MCP server (if configured)
+
+### Agent installer
+`install-agent.sh` lives in the fagents repo (cloned during initial install). For adding agents post-install, follow the manual steps in "How to add a new agent" above.
+
+### Key directories
+- `__INFRA_HOME__/team/` — team management scripts
+- `__INFRA_HOME__/repos/` — shared bare git repos (fagents-comms.git, fagents-autonomy.git, fagents-cli.git, per-agent repos)
+- `__INFRA_HOME__/workspace/` — infra user's working copies (fagents-comms, fagents-autonomy, fagents-cli)
+- `__INFRA_HOME__/.agents/<username>/` — per-agent credential dirs (telegram.env, x.env, openai.env)
+
 ### Credential gating
 Integration credentials (Telegram, X, email, OpenAI) live in `__INFRA_HOME__/.agents/<username>/`.
 - Owned by fagents:fagent, mode 700/600
