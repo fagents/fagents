@@ -141,6 +141,14 @@ if [[ -n "$FIRST_TIME" ]]; then
         --user "$INFRA_USER" \
         --agent "$NAME:$TOKEN:$FROM:$SMTP_USER:$SMTP_PASS:$IMAP_USER:$IMAP_PASS"
 
+    # Create #email-log channel for gate_email audit trail
+    _comms_port=$(grep -oP 'COMMS_PORT=\K\d+' "$MCP_DIR/.env" 2>/dev/null || echo "")
+    _comms_url="http://127.0.0.1:${_comms_port:-9754}"
+    curl -sf -X POST "$_comms_url/api/channels/email-log/messages" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"message": "Email audit log initialized."}' > /dev/null 2>&1 || true
+
     echo "Email configured for $NAME"
     exit 0
 fi

@@ -805,6 +805,13 @@ if [[ -n "$EMAIL_ENABLED" ]]; then
 - Do NOT use Bash to search for MCP config, API keys, or ports — the tools are available in your tool list automatically
 EMAILEOF
     chown "$COMMS_USER:fagent" "$agent_ws/memory/MEMORY.md"
+    # Create #email-log channel for gate_email audit trail
+    curl -sf -X POST "http://127.0.0.1:$COMMS_PORT/api/channels/email-log/messages" \
+        -H "Authorization: Bearer ${AGENT_TOKENS[$COMMS_AGENT_NAME]:-}" \
+        -H "Content-Type: application/json" \
+        -d '{"message": "Email audit log initialized."}' > /dev/null 2>&1 || true
+    log_ok "#email-log channel created"
+
     log_ok "$COMMS_AGENT_NAME: email configured"
     EMAIL_CONFIGURED=1
 fi
