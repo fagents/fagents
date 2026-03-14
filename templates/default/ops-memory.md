@@ -39,7 +39,7 @@ sudo su - <username> -c "
     export AUTONOMY_SHARED=1
     export CLI_DIR='__INFRA_HOME__/workspace/fagents-cli'
     export AGENT_TYPE='daemon'
-    bash /tmp/install-agent.sh
+    bash __INFRA_HOME__/team/install-agent.sh
 "
 ```
 Set `AGENT_TYPE='interactive'` for an interactive CC agent (skips daemon, installs skills).
@@ -59,6 +59,8 @@ Scripts in `__INFRA_HOME__/team/` (run as root or via sudo):
 - `start-comms.sh` / `stop-comms.sh` — comms server only
 - `start-team.sh` / `stop-team.sh` — agent daemons only
 - `start-email.sh` / `stop-email.sh` — email MCP server (if configured)
+- `install-agent.sh` — bootstrap a new agent (daemon or interactive)
+- `add-email.sh` — add email credentials for an agent
 
 ### How to add email for an agent
 `sudo bash __INFRA_HOME__/team/add-email.sh` (interactive) or with `--agent` flag:
