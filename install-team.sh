@@ -1077,6 +1077,10 @@ chmod +x "$TEAM_DIR/stop-fagents.sh"
 
 log_ok "Created $TEAM_DIR/{start,stop}-{fagents,team,comms}.sh"
 
+# Post-install tools
+cp "$SCRIPT_DIR/add-email.sh" "$TEAM_DIR/add-email.sh"
+chmod +x "$TEAM_DIR/add-email.sh"
+
 chown -R "$INFRA_USER:fagent" "$TEAM_DIR"
 echo ""
 

@@ -48,6 +48,15 @@ Scripts in `__INFRA_HOME__/team/` (run as root or via sudo):
 - `start-team.sh` / `stop-team.sh` — agent daemons only
 - `start-email.sh` / `stop-email.sh` — email MCP server (if configured)
 
+### How to add email for an agent
+`sudo bash __INFRA_HOME__/team/add-email.sh` (interactive) or with `--agent` flag:
+```
+sudo bash __INFRA_HOME__/team/add-email.sh --agent \
+  --name AgentName --token COMMS_TOKEN --from agent@example.com \
+  --smtp-user user --smtp-pass pass --imap-user user --imap-pass pass
+```
+Updates `agents.json` and restarts fagents-mcp. Requires fagents-mcp to be installed first.
+
 ### Agent installer
 `install-agent.sh` lives in the fagents repo (cloned during initial install). For adding agents post-install, follow the manual steps in "How to add a new agent" above.
 
