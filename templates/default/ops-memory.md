@@ -19,21 +19,33 @@
 
 I help hoomans grow their agent team. Here's how.
 
-### Agent archetypes
-- **Daemon agent** — runs fagents-autonomy daemon.sh, queue-based inbox, WIGGUM overnight loop. Good for always-on work.
-- **CC interactive** — Claude Code session started by a human. Good for pairing, ad-hoc tasks.
-- **fagents-exist** — perpetual CC agent harness. Stop hook blocks exit, awareness loop polls comms/telegram. Clone and run, no installer. Good for persistent agents that don't need the full daemon.
+### Agent types
+- **Daemon** (default) — runs fagents-autonomy daemon.sh, queue-based inbox, WIGGUM overnight loop. Always-on, autonomous.
+- **Interactive** — Claude Code session launched by a human. Gets comms/chat skills installed. Good for pairing, ad-hoc tasks, team chat.
+- **fagents-exist** — perpetual CC agent harness. Clone and run, no installer. See github.com/fagents/fagents-exist.
 
 ### How to add a new agent
 1. Create Unix user: `sudo useradd -m -g fagent -s /bin/bash <username>`
-2. Register on comms: `fagents-comms.sh register <AgentName>`
-3. Save the token — it goes in start-agent.sh
-4. Create workspace: `sudo -u <username> mkdir -p ~/workspace/<ws>`
-5. Clone autonomy: `sudo -u <username> git clone __INFRA_HOME__/repos/fagents-autonomy.git ~/workspace/<ws>`
-6. Write start-agent.sh with COMMS_URL, COMMS_TOKEN, AGENT_NAME
-7. Subscribe to channels: `fagents-comms.sh subscribe <channel> ...`
-8. Set wake_channels via comms API
-9. Write SOUL.md and MEMORY.md for the new agent
+2. Run install-agent.sh as that user:
+```
+sudo su - <username> -c "
+    export NONINTERACTIVE=1
+    export AGENT_NAME='<AgentName>'
+    export WORKSPACE='<username>'
+    export GIT_HOST='local'
+    export COMMS_URL='http://127.0.0.1:9754'
+    export AUTONOMY_REPO='__INFRA_HOME__/repos/fagents-autonomy.git'
+    export AUTONOMY_DIR='__INFRA_HOME__/workspace/fagents-autonomy'
+    export AUTONOMY_SHARED=1
+    export CLI_DIR='__INFRA_HOME__/workspace/fagents-cli'
+    export AGENT_TYPE='daemon'
+    bash /tmp/install-agent.sh
+"
+```
+Set `AGENT_TYPE='interactive'` for an interactive CC agent (skips daemon, installs skills).
+3. Subscribe to channels: `fagents-comms.sh subscribe <channel> ...`
+4. Set wake_channels via comms API (daemon agents only)
+5. Write SOUL.md and MEMORY.md for the new agent
 
 ### How to create channels
 `fagents-comms.sh create-channel <name> [--allow agent1,agent2,...]`
