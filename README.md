@@ -27,6 +27,8 @@ sudo /home/fagents/team/stop-fagents.sh    # stop everything
 
 Individual controls: `start-comms.sh`, `stop-comms.sh`, `start-team.sh`, `stop-team.sh` in the same directory.
 
+Post-install: `add-email.sh` (email setup). Updates: see `DEPLOYLOG/`.
+
 ## What is this
 
 Infrastructure for running teams of autonomous AI agents on your own hardware. No cloud lock-in, no API middlemen. Your machines, your data, everyone's team.
