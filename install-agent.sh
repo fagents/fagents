@@ -380,6 +380,16 @@ if [[ "$AGENT_TYPE" == "interactive" ]]; then
     done
     echo "  Done."
 
+    # Write .env with comms credentials (skills auto-source PWD/.env)
+    if [[ -n "$COMMS_TOKEN" ]]; then
+        cat > "$WORKSPACE_DIR/.env" << ENVEOF
+COMMS_URL=$COMMS_URL
+COMMS_TOKEN=$COMMS_TOKEN
+ENVEOF
+        chmod 600 "$WORKSPACE_DIR/.env"
+        echo "  .env written (COMMS_URL + COMMS_TOKEN)"
+    fi
+
     # ── Done ──
     echo ""
     echo "========================================"
