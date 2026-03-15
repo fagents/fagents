@@ -186,16 +186,20 @@ cd "$WORKSPACE_DIR"
 # .claude/settings.json
 mkdir -p .claude
 if [[ ! -f .claude/settings.json ]]; then
-    cat > .claude/settings.json << 'SETTINGSEOF'
+    cat > .claude/settings.json << SETTINGSEOF
 {
   "enableAllProjectMcpServers": true,
   "permissions": {
     "deny": [
       "Read(./.env)", "Read(./.env.*)", "Read(./.mcp.json)",
       "Read(./start-agent.sh)",
-      "Read(~/.ssh/id_*)",
+      "Read($WORKSPACE_DIR/.env)", "Read($WORKSPACE_DIR/.env.*)", "Read($WORKSPACE_DIR/.mcp.json)",
+      "Read($WORKSPACE_DIR/start-agent.sh)",
+      "Read($HOME/.ssh/id_*)",
       "Bash(cat .env)", "Bash(cat .env.*)",
-      "Bash(cat .mcp.json)", "Bash(cat start-agent.sh)"
+      "Bash(cat .mcp.json)", "Bash(cat start-agent.sh)",
+      "Bash(cat $WORKSPACE_DIR/.env)", "Bash(cat $WORKSPACE_DIR/.env.*)",
+      "Bash(cat $WORKSPACE_DIR/.mcp.json)", "Bash(cat $WORKSPACE_DIR/start-agent.sh)"
     ]
   },
   "hooks": {
