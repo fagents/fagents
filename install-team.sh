@@ -514,6 +514,32 @@ elif [[ -d "$SHARED_CLI" ]]; then
     fi
 fi
 
+# Clone fagents-mcp (bare + working copy, no build — built when email is configured)
+MCP_REPO="https://github.com/fagents/fagents-mcp.git"
+SHARED_MCP="$INFRA_HOME/repos/fagents-mcp.git"
+if [[ -d "$SHARED_MCP" ]]; then
+    log_ok "fagents-mcp.git already at $SHARED_MCP"
+else
+    if su - "$INFRA_USER" -c "git clone --bare '$MCP_REPO' ~/repos/fagents-mcp.git" 2>&1 | log_verbose; then
+        su - "$INFRA_USER" -c "git -C ~/repos/fagents-mcp.git remote remove origin" 2>/dev/null || true
+        log_ok "Cloned fagents-mcp.git"
+    else
+        log_warn "Failed to clone fagents-mcp — run with --verbose for details"
+    fi
+fi
+[[ -d "$SHARED_MCP" ]] && chmod -R g+rX "$SHARED_MCP"
+
+MCP_DIR="$INFRA_HOME/workspace/fagents-mcp"
+if [[ -d "$MCP_DIR" ]]; then
+    log_ok "fagents-mcp working copy already at $MCP_DIR"
+elif [[ -d "$SHARED_MCP" ]]; then
+    if su - "$INFRA_USER" -c "git clone '$SHARED_MCP' ~/workspace/fagents-mcp" 2>&1 | log_verbose; then
+        log_ok "Created fagents-mcp working copy at $MCP_DIR"
+    else
+        log_warn "Failed to create fagents-mcp working copy"
+    fi
+fi
+
 # Generate TEAM.md from base template
 BASE_TEAM_TEMPLATE="$SCRIPT_DIR/templates/base/TEAM.md"
 if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && [[ -f "$BASE_TEAM_TEMPLATE" ]]; then
