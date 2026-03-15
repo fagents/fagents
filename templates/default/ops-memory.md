@@ -67,7 +67,8 @@ Scripts in `__INFRA_HOME__/team/` (run as root or via sudo):
 `sudo bash __INFRA_HOME__/team/add-email.sh` (interactive) or with `--agent` flag:
 ```
 sudo bash __INFRA_HOME__/team/add-email.sh --agent \
-  --name AgentName --token COMMS_TOKEN --from agent@example.com \
+  --name AgentName --token COMMS_TOKEN --user unix_username \
+  --from agent@example.com \
   --smtp-user user --smtp-pass pass --imap-user user --imap-pass pass
 ```
 If fagents-mcp is not installed yet, the script handles first-time setup automatically

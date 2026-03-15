@@ -27,6 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_MODE=""
 NAME="" TOKEN="" FROM="" SMTP_USER="" SMTP_PASS="" IMAP_USER="" IMAP_PASS=""
 SMTP_HOST="" SMTP_PORT="" IMAP_HOST="" IMAP_PORT="" MCP_PORT=""
+AGENT_USER=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -43,6 +44,7 @@ while [[ $# -gt 0 ]]; do
         --imap-host) IMAP_HOST="$2"; shift 2 ;;
         --imap-port) IMAP_PORT="$2"; shift 2 ;;
         --mcp-port)  MCP_PORT="$2"; shift 2 ;;
+        --user)      AGENT_USER="$2"; shift 2 ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
@@ -118,6 +120,7 @@ if [[ -z "$AGENT_MODE" ]]; then
     [[ -z "$SMTP_PASS" ]] && read -rsp "SMTP password: " SMTP_PASS && echo ""
     [[ -z "$IMAP_USER" ]] && read -rp "IMAP username: " IMAP_USER
     [[ -z "$IMAP_PASS" ]] && read -rsp "IMAP password: " IMAP_PASS && echo ""
+    [[ -z "$AGENT_USER" ]] && read -rp "Unix username for this agent (e.g. dev): " AGENT_USER
 fi
 
 # ── Validate agent inputs ──
@@ -127,6 +130,33 @@ for var in NAME TOKEN FROM SMTP_USER SMTP_PASS IMAP_USER IMAP_PASS; do
         exit 1
     fi
 done
+
+# ── Write .mcp.json for the agent ──
+write_mcp_json() {
+    local mcp_port="$1" token="$2" user="$3"
+    [[ -z "$user" ]] && return
+    local agent_home
+    agent_home=$(eval echo "~$user")
+    local ws_dir="$agent_home/workspace/$user"
+    local mcp_file="$ws_dir/.mcp.json"
+    [[ -d "$ws_dir" ]] || return
+
+    local mcp_url="http://127.0.0.1:${mcp_port}/mcp"
+    if [[ -f "$mcp_file" ]]; then
+        local tmp
+        tmp=$(jq --arg url "$mcp_url" --arg key "$token" \
+            '.mcpServers["fagents-mcp"] = {"type": "http", "url": $url, "headers": {"x-api-key": $key}}' \
+            "$mcp_file")
+        echo "$tmp" > "$mcp_file"
+    else
+        jq -n --arg url "$mcp_url" --arg key "$token" \
+            '{mcpServers: {"fagents-mcp": {"type": "http", "url": $url, "headers": {"x-api-key": $key}}}}' \
+            > "$mcp_file"
+    fi
+    chown "$user:fagent" "$mcp_file"
+    chmod 600 "$mcp_file"
+    echo "  .mcp.json written for $user"
+}
 
 # ── First-time: run install-email.sh ──
 if [[ -n "$FIRST_TIME" ]]; then
@@ -149,6 +179,7 @@ if [[ -n "$FIRST_TIME" ]]; then
         -H "Content-Type: application/json" \
         -d '{"message": "Email audit log initialized."}' > /dev/null 2>&1 || true
 
+    write_mcp_json "$MCP_PORT" "$TOKEN" "$AGENT_USER"
     echo "Email configured for $NAME"
     exit 0
 fi
@@ -194,3 +225,7 @@ if systemctl is-active --quiet fagents-mcp 2>/dev/null; then
 else
     echo "Email configured for $NAME — fagents-mcp not running (start with: sudo systemctl start fagents-mcp)"
 fi
+
+# ── Write .mcp.json for the agent ──
+_mcp_port=$(jq -r '.MCP_PORT // empty' "$MCP_DIR/.env" 2>/dev/null || grep -oP 'MCP_PORT=\K\d+' "$MCP_DIR/.env" 2>/dev/null || echo "9755")
+write_mcp_json "$_mcp_port" "$TOKEN" "$AGENT_USER"
