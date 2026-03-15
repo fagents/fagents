@@ -513,16 +513,7 @@ if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && [[ -f "$BASE_TEAM_TEMPLATE" ]]; then
     log_ok "TEAM.md generated from base template (untracked)"
 fi
 
-# Create bare git repos for each agent
-for user in "$OPS_USER" "$COMMS_USER"; do
-    repo_path="$REPOS_DIR/$user.git"
-    if [[ -d "$repo_path" ]]; then
-        log_ok "Repo $user.git already exists"
-    else
-        run sudo -Hu"$INFRA_USER" bash -lc "git init --bare -b main ~/repos/$user.git"
-        log_ok "Created bare repo: $user.git"
-    fi
-done
+# Ensure repos dir is group-writable (install-agent.sh creates per-agent bare repos there)
 chmod -R g+rwX "$REPOS_DIR"
 find "$REPOS_DIR" -type d -exec chmod g+s {} +
 for repo in "$REPOS_DIR"/*.git; do
@@ -678,6 +669,7 @@ for i in "${!AGENT_NAMES[@]}"; do
         export AUTONOMY_REPO='$AUTONOMY_REPO'
         export AUTONOMY_DIR='$SHARED_AUTONOMY_WORKING'
         export AUTONOMY_SHARED=1
+        export REPOS_DIR='$REPOS_DIR'
         bash '$INSTALL_SCRIPT'
     " 2>&1) || true
     [[ -n "${VERBOSE:-}" ]] && echo "$_out" | sed 's/^/  /'
@@ -694,12 +686,6 @@ for i in "${!AGENT_NAMES[@]}"; do
             sudo -Hu"$user" bash -c "ln -s '$right_claude_dir' '$agent_ws/.introspection-logs'"
         fi
         log_ok "Fixed Claude project dir path for macOS"
-    fi
-
-    # Set up git remote pointing to local bare repo
-    if [[ -d "$agent_ws/.git" ]]; then
-        sudo -Hu"$user" bash -lc "cd ~/workspace/$user && git remote remove origin 2>/dev/null; git remote add origin file://$REPOS_DIR/$user.git && git push -u origin main 2>/dev/null" 2>&1 | log_verbose || true
-        log_ok "Git remote → $REPOS_DIR/$user.git"
     fi
 
     # Set wake_channels

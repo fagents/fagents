@@ -90,14 +90,33 @@ else
 fi
 echo "  Done."
 
-# ── Step 2: Create bare repo (remote or local) ──
+# ── Step 2: Create git repo ──
 echo ""
 echo "=== Step 2: Git repo ==="
+REPOS_DIR="${REPOS_DIR:-}"
+
 if [[ "$GIT_HOST" == "local" ]]; then
-    echo "  Initializing local repo..."
     mkdir -p "$WORKSPACE_DIR"
-    git -C "$WORKSPACE_DIR" init --quiet -b main
-    REPO_URL="(local)"
+    git -C "$WORKSPACE_DIR" init --quiet -b main 2>/dev/null || true
+
+    # Create bare repo for backup/versioning if REPOS_DIR is available
+    if [[ -n "$REPOS_DIR" && -d "$REPOS_DIR" ]]; then
+        BARE_REPO="$REPOS_DIR/${WORKSPACE}.git"
+        if [[ -d "$BARE_REPO" ]]; then
+            echo "  Bare repo already exists: $BARE_REPO"
+        else
+            git init --bare --quiet -b main "$BARE_REPO" 2>/dev/null
+            git -C "$BARE_REPO" config core.sharedRepository group 2>/dev/null || true
+            echo "  Created bare repo: $BARE_REPO"
+        fi
+        # Set remote
+        git -C "$WORKSPACE_DIR" remote remove origin 2>/dev/null || true
+        git -C "$WORKSPACE_DIR" remote add origin "file://$BARE_REPO"
+        REPO_URL="file://$BARE_REPO"
+        echo "  Remote → $BARE_REPO"
+    else
+        REPO_URL="(local, no bare repo)"
+    fi
 else
     REPO_PATH="repos/${WORKSPACE}.git"
     REPO_URL="ssh://${GIT_HOST}/home/$(echo "$GIT_HOST" | cut -d@ -f1)/${REPO_PATH}"
@@ -327,8 +346,8 @@ if git diff --cached --quiet 2>/dev/null; then
     echo "  Nothing to commit (workspace already initialized)."
 else
     git commit -m "Initial workspace for $AGENT_NAME — created by install.sh" --quiet
-    if [[ "$GIT_HOST" != "local" ]] && git remote | grep -q origin; then
-        git push -u origin main --quiet 2>/dev/null && echo "  Pushed to remote." || \
+    if git remote | grep -q origin; then
+        git push -u origin main --quiet 2>/dev/null && echo "  Pushed to origin." || \
             echo "  Push failed (may need to set up branch). Push manually later."
     fi
     echo "  Done."

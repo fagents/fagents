@@ -550,16 +550,7 @@ if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && [[ -f "$BASE_TEAM_TEMPLATE" ]]; then
     log_ok "TEAM.md generated from base template (untracked)"
 fi
 
-# Create bare git repos for each agent
-for user in "$OPS_USER" "$COMMS_USER"; do
-    repo_path="$REPOS_DIR/$user.git"
-    if [[ -d "$repo_path" ]]; then
-        log_ok "Repo $user.git already exists"
-    else
-        run su - "$INFRA_USER" -c "git init --bare -b main ~/repos/$user.git"
-        log_ok "Created bare repo: $user.git"
-    fi
-done
+# Ensure repos dir is group-writable (install-agent.sh creates per-agent bare repos there)
 chmod -R g+rwX "$REPOS_DIR"
 find "$REPOS_DIR" -type d -exec chmod g+s {} +
 for repo in "$REPOS_DIR"/*.git; do
@@ -713,17 +704,13 @@ for i in "${!AGENT_NAMES[@]}"; do
         export AUTONOMY_REPO='$AUTONOMY_REPO'
         export AUTONOMY_DIR='$SHARED_AUTONOMY_WORKING'
         export AUTONOMY_SHARED=1
+        export REPOS_DIR='$REPOS_DIR'
         bash '$INSTALL_SCRIPT'
     " 2>&1) || true
     [[ -n "${VERBOSE:-}" ]] && echo "$_out" | sed 's/^/  /'
 
-    # Set up git remote pointing to local bare repo
     agent_home=$(eval echo "~$user")
     agent_ws="$agent_home/workspace/$user"
-    if [[ -d "$agent_ws/.git" ]]; then
-        su - "$user" -c "cd ~/workspace/$user && git remote remove origin 2>/dev/null; git remote add origin file://$REPOS_DIR/$user.git && git push -u origin main 2>/dev/null" 2>&1 | log_verbose || true
-        log_ok "Git remote → $REPOS_DIR/$user.git"
-    fi
 
     # Set wake_channels
     curl -sf -X PUT "http://127.0.0.1:$COMMS_PORT/api/agents/$name/config" \

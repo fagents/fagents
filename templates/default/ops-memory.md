@@ -39,6 +39,7 @@ sudo su - <username> -c "
     export AUTONOMY_DIR='__INFRA_HOME__/workspace/fagents-autonomy'
     export AUTONOMY_SHARED=1
     export CLI_DIR='__INFRA_HOME__/workspace/fagents-cli'
+    export REPOS_DIR='__INFRA_HOME__/repos'
     export AGENT_TYPE='daemon'
     bash __INFRA_HOME__/team/install-agent.sh
 "
