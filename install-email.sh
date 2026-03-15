@@ -55,13 +55,26 @@ fi
 
 echo "  Setting up email MCP server..."
 
-# ── Clone or update fagents-mcp ──
+# ── Clone fagents-mcp (bare repo + working copy, same pattern as other repos) ──
+REPOS_DIR="$(eval echo "~$SERVICE_USER")/repos"
+BARE_REPO="$REPOS_DIR/fagents-mcp.git"
+su - "$SERVICE_USER" -c "mkdir -p ~/repos"
+
+if [[ -d "$BARE_REPO" ]]; then
+    echo "  fagents-mcp.git already exists — fetching latest..."
+    su - "$SERVICE_USER" -c "git -C ~/repos/fagents-mcp.git fetch '$MCP_REPO' main:main" 2>/dev/null || true
+else
+    echo "  Cloning fagents-mcp bare repo..."
+    su - "$SERVICE_USER" -c "git clone --bare '$MCP_REPO' ~/repos/fagents-mcp.git" 2>&1 | tail -1
+    su - "$SERVICE_USER" -c "git -C ~/repos/fagents-mcp.git remote remove origin" 2>/dev/null || true
+fi
+
 if [[ -d "$INSTALL_DIR/.git" ]]; then
-    echo "  fagents-mcp already at $INSTALL_DIR — pulling latest..."
+    echo "  fagents-mcp working copy exists — pulling..."
     su - "$SERVICE_USER" -c "cd '$INSTALL_DIR' && git pull --quiet" 2>/dev/null || true
 else
-    echo "  Cloning fagents-mcp..."
-    su - "$SERVICE_USER" -c "git clone '$MCP_REPO' '$INSTALL_DIR'" 2>&1 | tail -1
+    echo "  Cloning fagents-mcp working copy..."
+    su - "$SERVICE_USER" -c "git clone ~/repos/fagents-mcp.git '$INSTALL_DIR'" 2>&1 | tail -1
 fi
 
 # ── Install dependencies and build ──
