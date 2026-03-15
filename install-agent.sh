@@ -334,10 +334,26 @@ else
     echo "  Done."
 fi
 
-# ── Step 7: Type-specific setup ──
+# ── Step 7: Claude Code ──
+if command -v claude &>/dev/null; then
+    echo "=== Step 7: Claude Code ==="
+    echo "  Already installed"
+else
+    echo "=== Step 7: Claude Code ==="
+    echo "  Installing..."
+    curl -fsSL https://claude.ai/install.sh | bash > /dev/null 2>&1 || true
+    if command -v claude &>/dev/null; then
+        echo "  Installed"
+    else
+        echo "  WARNING: Claude Code install failed — install manually"
+    fi
+fi
+echo ""
+
+# ── Step 8: Type-specific setup ──
 echo ""
 if [[ "$AGENT_TYPE" == "interactive" ]]; then
-    echo "=== Step 7: Skills installation ==="
+    echo "=== Step 8: Skills installation ==="
     # Default CLI_DIR: detect platform
     if [[ -z "${CLI_DIR:-}" ]]; then
         if [[ -d "/Users/fagents/workspace/fagents-cli" ]]; then
@@ -374,7 +390,7 @@ if [[ "$AGENT_TYPE" == "interactive" ]]; then
     echo "  sudo su - $(whoami) -c 'cd $WORKSPACE_DIR && claude'"
     echo ""
 else
-    echo "=== Step 7: Agent start script ==="
+    echo "=== Step 8: Agent start script ==="
     TOKEN_LINE="export COMMS_TOKEN=\"$COMMS_TOKEN\""
     if [[ -z "$COMMS_TOKEN" ]]; then
         TOKEN_LINE="export COMMS_TOKEN=\"<register agent and paste token here>\""
