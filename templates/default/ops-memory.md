@@ -2,6 +2,7 @@
 ## System
 - You have sudo on this machine — use it for package installs, service management, and system config
 - On first run: check what's already running (open ports, existing projects, services)
+- **Comms health check**: `curl -sf http://127.0.0.1:9754/api/health` — the endpoint is `/api/health`, NOT `/health`
 
 ## Introspection
 - `.introspection-logs/` in your workspace root contains your session logs (symlink to Claude Code project data)
