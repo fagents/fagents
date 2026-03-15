@@ -264,7 +264,7 @@ echo "=== Step 5: Comms registration ==="
 # Try to establish SSH tunnel if comms not reachable
 comms_reachable() {
     local code
-    code=$(curl -s -o /dev/null -w "%{http_code}" "$COMMS_URL/health" 2>/dev/null)
+    code=$(curl -s -o /dev/null -w "%{http_code}" "$COMMS_URL/api/health" 2>/dev/null)
     [[ "$code" =~ ^[0-9]+$ && "$code" != "000" ]]
 }
 
@@ -338,7 +338,14 @@ fi
 echo ""
 if [[ "$AGENT_TYPE" == "interactive" ]]; then
     echo "=== Step 7: Skills installation ==="
-    CLI_DIR="${CLI_DIR:-/home/fagents/workspace/fagents-cli}"
+    # Default CLI_DIR: detect platform
+    if [[ -z "${CLI_DIR:-}" ]]; then
+        if [[ -d "/Users/fagents/workspace/fagents-cli" ]]; then
+            CLI_DIR="/Users/fagents/workspace/fagents-cli"
+        else
+            CLI_DIR="/home/fagents/workspace/fagents-cli"
+        fi
+    fi
     CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
     mkdir -p "$CLAUDE_SKILLS_DIR"
 
@@ -346,7 +353,12 @@ if [[ "$AGENT_TYPE" == "interactive" ]]; then
         if [[ -f "$CLI_DIR/$skill/SKILL.md" ]]; then
             mkdir -p "$CLAUDE_SKILLS_DIR/$skill"
             cp "$CLI_DIR/$skill/SKILL.md" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
-            sed -i "s|__CLI_DIR__|$CLI_DIR|g" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
+            # BSD sed (macOS) needs -i '', GNU sed (Linux) needs just -i
+            if sed --version 2>/dev/null | grep -q GNU; then
+                sed -i "s|__CLI_DIR__|$CLI_DIR|g" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
+            else
+                sed -i '' "s|__CLI_DIR__|$CLI_DIR|g" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
+            fi
             echo "  Installed skill: $skill"
         fi
     done

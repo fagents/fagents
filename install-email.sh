@@ -79,10 +79,10 @@ fi
 
 # ── Install dependencies and build ──
 echo "  Installing dependencies..."
-su - "$SERVICE_USER" -c "cd '$INSTALL_DIR' && npm install 2>&1 | tail -1"
+su - "$SERVICE_USER" -c "cd '$INSTALL_DIR' && npm install" > /dev/null 2>&1
 
 echo "  Building..."
-su - "$SERVICE_USER" -c "cd '$INSTALL_DIR' && npm run build 2>&1 | tail -1"
+su - "$SERVICE_USER" -c "cd '$INSTALL_DIR' && npm run build" > /dev/null 2>&1
 
 # ── Generate .env ──
 cat > "$INSTALL_DIR/.env" << EOF
