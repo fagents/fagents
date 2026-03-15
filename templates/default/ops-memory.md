@@ -91,6 +91,26 @@ and optionally `--smtp-port` (default 587), `--imap-port` (993), `--mcp-port` (9
 - `DEPLOYLOG/YYYY-MM-DDTHHMMSS-<feature>.md` — step-by-step instructions for features that need more than a pull (new creds, sudoers, etc.)
 - Read the README first — it has the exact commands for pulling bare repos from GitHub and restarting services
 
+### How to add Telegram for an agent
+1. Create credential dir and telegram.env:
+```
+sudo mkdir -p __INFRA_HOME__/.agents/<username>
+sudo tee __INFRA_HOME__/.agents/<username>/telegram.env > /dev/null <<EOF
+TELEGRAM_BOT_TOKEN=<token-from-botfather>
+TELEGRAM_ALLOWED_IDS=<comma-separated-user-ids>
+EOF
+sudo chown -R fagents:fagent __INFRA_HOME__/.agents/<username>
+sudo chmod 700 __INFRA_HOME__/.agents/<username>
+sudo chmod 600 __INFRA_HOME__/.agents/<username>/telegram.env
+```
+2. Add sudoers so the agent can call telegram.sh via sudo:
+```
+echo "<username> ALL=(fagents) NOPASSWD: __INFRA_HOME__/workspace/fagents-cli/telegram.sh, __INFRA_HOME__/workspace/fagents-cli/tts-speak.sh, __INFRA_HOME__/workspace/fagents-cli/stt-transcribe.sh" | sudo tee /etc/sudoers.d/<username>-telegram
+sudo chmod 440 /etc/sudoers.d/<username>-telegram
+```
+3. Ask the human to provide the bot token from @BotFather and their Telegram user ID.
+   To get the user ID: have them send a message to the bot, then `sudo -u fagents __INFRA_HOME__/workspace/fagents-cli/telegram.sh poll` — the `from` field has the ID.
+
 ### Credential gating
 Integration credentials (Telegram, X, email, OpenAI) live in `__INFRA_HOME__/.agents/<username>/`.
 - Owned by fagents:fagent, mode 700/600
