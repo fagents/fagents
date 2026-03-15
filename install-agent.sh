@@ -365,7 +365,7 @@ if [[ "$AGENT_TYPE" == "interactive" ]]; then
     CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
     mkdir -p "$CLAUDE_SKILLS_DIR"
 
-    for skill in fagents-comms fagents-chat telegram x; do
+    for skill in fagents-comms fagents-chat fagents-watch telegram x; do
         if [[ -f "$CLI_DIR/$skill/SKILL.md" ]]; then
             mkdir -p "$CLAUDE_SKILLS_DIR/$skill"
             cp "$CLI_DIR/$skill/SKILL.md" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
