@@ -58,6 +58,7 @@ Default: open to all. Use `--allow` for private channels.
 Scripts in `__INFRA_HOME__/team/` (run as root or via sudo):
 - `start-fagents.sh` — start everything (comms + email + agents)
 - `stop-fagents.sh` — stop everything
+- `restart-fagents.sh` — atomic restart via systemd/launchd (safe to call on yourself — you will die and come back)
 - `start-comms.sh` / `stop-comms.sh` — comms server only
 - `start-team.sh` / `stop-team.sh` — agent daemons only
 - `start-email.sh` / `stop-email.sh` — email MCP server (if configured)

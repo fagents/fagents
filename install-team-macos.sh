@@ -953,7 +953,22 @@ SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 STOPALL
 chmod +x "$TEAM_DIR/stop-fagents.sh"
 
-log_ok "Created $TEAM_DIR/{start,stop}-{fagents,team,comms}.sh"
+# restart-fagents.sh (atomic restart via launchd — safe for agents to call on themselves)
+cat > "$TEAM_DIR/restart-fagents.sh" << 'RESTARTALL'
+#!/bin/bash
+# Restart everything atomically via launchd.
+# Safe for agents to call — launchd drives the stop→start, not the calling process.
+set -euo pipefail
+if [[ -f /Library/LaunchDaemons/ai.fagents.plist ]]; then
+    exec launchctl kickstart -k system/ai.fagents
+else
+    echo "ERROR: fagents launchd plist not found. Use stop-fagents.sh + start-fagents.sh manually." >&2
+    exit 1
+fi
+RESTARTALL
+chmod +x "$TEAM_DIR/restart-fagents.sh"
+
+log_ok "Created $TEAM_DIR/{start,stop,restart}-{fagents,team,comms}.sh"
 
 # Post-install tools
 cp "$SCRIPT_DIR/add-email.sh" "$TEAM_DIR/add-email.sh"

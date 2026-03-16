@@ -1095,7 +1095,22 @@ echo '"$SCRIPT_DIR/stop-comms.sh"'
 } > "$TEAM_DIR/stop-fagents.sh"
 chmod +x "$TEAM_DIR/stop-fagents.sh"
 
-log_ok "Created $TEAM_DIR/{start,stop}-{fagents,team,comms}.sh"
+# restart-fagents.sh (atomic restart via systemd — safe for agents to call on themselves)
+cat > "$TEAM_DIR/restart-fagents.sh" << 'RESTARTALL'
+#!/bin/bash
+# Restart everything atomically via systemd.
+# Safe for agents to call — systemd drives the stop→start, not the calling process.
+set -euo pipefail
+if command -v systemctl &>/dev/null && systemctl is-enabled --quiet fagents 2>/dev/null; then
+    exec systemctl restart fagents
+else
+    echo "ERROR: fagents systemd service not found. Use stop-fagents.sh + start-fagents.sh manually." >&2
+    exit 1
+fi
+RESTARTALL
+chmod +x "$TEAM_DIR/restart-fagents.sh"
+
+log_ok "Created $TEAM_DIR/{start,stop,restart}-{fagents,team,comms}.sh"
 
 # Post-install tools
 cp "$SCRIPT_DIR/add-email.sh" "$TEAM_DIR/add-email.sh"
