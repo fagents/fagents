@@ -20,9 +20,10 @@ sudo git -C "$INFRA_HOME/workspace/fagents-cli" pull
 sudo git -C "$INFRA_HOME/repos/fagents-autonomy.git" fetch "https://github.com/fagents/fagents-autonomy.git" main:main
 sudo git -C "$INFRA_HOME/workspace/fagents-autonomy" pull
 
-# 3. Restart agents that use Telegram
-sudo /home/fagents/team/stop-team.sh
-sudo /home/fagents/team/start-team.sh
+# 3. Restart only agents that use Telegram (typically the comms agent)
+# Find which agent has telegram.env configured:
+ls $INFRA_HOME/.agents/*/telegram.env 2>/dev/null
+# Then restart just that agent's daemon
 ```
 
 No new credentials or sudoers changes needed.
