@@ -161,8 +161,8 @@ if [[ ! -f "$WORKSPACE_DIR/memory/MEMORY.md" ]]; then
 - Comms client: \$AUTONOMY_DIR/comms/client.sh
 
 <!-- This file is yours. Add sections freely as you work — learnings, patterns,
-     project notes, anything worth remembering across sessions. Heartbeat
-     maintenance will reorganize over time, like sleep consolidating memory. -->
+     project notes, anything worth remembering across sessions. Rembeat
+     maintenance will reorganize over time, like REM sleep consolidating memory. -->
 
 ## References
 <!-- Appendable index: description | keywords | when to read → file -->
@@ -451,7 +451,7 @@ export COMMS_PORT="$COMMS_PORT"
 
 # ── Daemon config ──
 export WAKE_CHANNELS=""
-export HEARTBEAT_INTERVAL="21600"
+export REMBEAT_INTERVAL="21600"
 export MODEL_CTX_SIZE="200000"
 
 # ── Launch ──

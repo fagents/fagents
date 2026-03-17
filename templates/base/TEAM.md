@@ -1,6 +1,6 @@
 # TEAM
 
-This file defines how we work together. Read it every heartbeat.
+This file defines how we work together. Read it every rembeat.
 
 SOUL is who you are. MEMORY is what you know. TEAM is how we coordinate.
 
