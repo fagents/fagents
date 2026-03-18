@@ -42,9 +42,21 @@ for USER in $AGENT_USERS; do
 done
 ```
 
-### 3. No restart needed
+### 3. Restart daemon agents
 
-Daemon agents pick up the new `collect_telegram()` on next restart. The `telegram.sh` changes are immediate (CLI tools are called directly). Interactive agents load the updated skill on next session.
+The `telegram.sh` CLI changes are immediate. But `collect_telegram()` in daemon.sh only loads on daemon restart:
+
+```bash
+INFRA_HOME=$(eval echo "~fagents")
+if [ -x "$INFRA_HOME/team/restart-fagents.sh" ]; then
+    sudo "$INFRA_HOME/team/restart-fagents.sh"
+else
+    sudo "$INFRA_HOME/team/stop-team.sh"
+    sudo "$INFRA_HOME/team/start-team.sh"
+fi
+```
+
+Interactive agents load the updated skill on next session (no restart needed).
 
 ## How it works
 
