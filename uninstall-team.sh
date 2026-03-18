@@ -133,6 +133,11 @@ echo ""
 echo "=== Step 2: Remove users ==="
 for user in "${AGENT_USERS[@]}"; do
     if id "$user" &>/dev/null; then
+        # Clean fagents cron entries before removing user
+        if su - "$user" -c "crontab -l" 2>/dev/null | grep -q 'fagents-cron:'; then
+            su - "$user" -c "crontab -l" 2>/dev/null | grep -v 'fagents-cron:' | su - "$user" -c "crontab -" 2>/dev/null
+            echo "  Cleaned cron entries for $user"
+        fi
         rm -f "/etc/sudoers.d/$user"
         rm -f "/etc/sudoers.d/${user}-telegram"
         rm -f "/etc/sudoers.d/${user}-x"
