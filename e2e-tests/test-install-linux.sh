@@ -134,6 +134,8 @@ verify() {
     check "fagents-cli working copy exists"      'test -d /home/fagents/workspace/fagents-cli'
     check "fagents-mcp bare repo exists"         'test -d /home/fagents/repos/fagents-mcp.git'
     check "fagents-mcp working copy exists"      'test -d /home/fagents/workspace/fagents-mcp'
+    check "fagents bare repo exists"             'test -d /home/fagents/repos/fagents.git'
+    check "fagents working copy exists"          'test -d /home/fagents/workspace/fagents'
 
     # -- Comms server --
     check "comms health endpoint responds" "curl -sf --max-time 5 http://127.0.0.1:$COMMS_PORT/api/health"
@@ -173,6 +175,10 @@ verify() {
     check "$OPS_NAME .gitignore exists"            "test -f $ws/.gitignore"
     check "$OPS_NAME git repo has commits"         "su -s /bin/bash $OPS_USER -c 'git -C $ws log --oneline -1'"
     check "$OPS_NAME has full sudoers"             "test -f /etc/sudoers.d/$OPS_USER"
+    check "$OPS_NAME deploylog skill installed"   "test -f /home/$OPS_USER/.claude/skills/fagents-deploylog/SKILL.md"
+    check "$OPS_NAME deploylog skill resolved"    "! grep -q '__INFRA_HOME__' /home/$OPS_USER/.claude/skills/fagents-deploylog/SKILL.md"
+    check "$OPS_NAME MEMORY.md has deploylog"     "grep -q 'DEPLOYLOG automation' /home/$OPS_USER/workspace/$OPS_USER/memory/MEMORY.md"
+    check "$OPS_NAME deploylog cron exists"       "su -s /bin/bash $OPS_USER -c 'crontab -l' 2>/dev/null | grep -q 'deploylog-check'"
 
     # -- Comms agent workspace --
     ws="/home/$COMMS_USER/workspace/$COMMS_USER"

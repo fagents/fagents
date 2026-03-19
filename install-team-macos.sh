@@ -503,6 +503,32 @@ elif [[ -d "$SHARED_MCP" ]]; then
     fi
 fi
 
+# Clone fagents (installer repo — contains DEPLOYLOG/, templates, scripts)
+FAGENTS_REPO="https://github.com/fagents/fagents.git"
+SHARED_FAGENTS="$INFRA_HOME/repos/fagents.git"
+if [[ -d "$SHARED_FAGENTS" ]]; then
+    log_ok "fagents.git already at $SHARED_FAGENTS"
+else
+    if sudo -Hu"$INFRA_USER" bash -lc "git clone --bare '$FAGENTS_REPO' ~/repos/fagents.git" 2>&1 | log_verbose; then
+        sudo -Hu"$INFRA_USER" bash -lc "git -C ~/repos/fagents.git remote remove origin" 2>/dev/null || true
+        log_ok "Cloned fagents.git"
+    else
+        log_warn "Failed to clone fagents.git — run with --verbose for details"
+    fi
+fi
+[[ -d "$SHARED_FAGENTS" ]] && chmod -R g+rX "$SHARED_FAGENTS"
+
+FAGENTS_DIR="$INFRA_HOME/workspace/fagents"
+if [[ -d "$FAGENTS_DIR" ]]; then
+    log_ok "fagents working copy already at $FAGENTS_DIR"
+elif [[ -d "$SHARED_FAGENTS" ]]; then
+    if sudo -Hu"$INFRA_USER" bash -lc "git clone '$SHARED_FAGENTS' ~/workspace/fagents" 2>&1 | log_verbose; then
+        log_ok "Created fagents working copy at $FAGENTS_DIR"
+    else
+        log_warn "Failed to create fagents working copy"
+    fi
+fi
+
 # Generate TEAM.md from base template
 BASE_TEAM_TEMPLATE="$SCRIPT_DIR/templates/base/TEAM.md"
 if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && [[ -f "$BASE_TEAM_TEMPLATE" ]]; then
@@ -729,6 +755,16 @@ for i in "${!AGENT_NAMES[@]}"; do
 done
 
 rm -f "$INSTALL_SCRIPT"
+
+# Set up DEPLOYLOG check cron for ops agent (daily at 9am)
+OPS_HOME=$(eval echo "~$OPS_USER")
+if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && [[ -d "$OPS_HOME/workspace/$OPS_USER" ]]; then
+    su - "$OPS_USER" -c "
+        PROJECT_DIR=~/workspace/$OPS_USER \
+        bash '$SHARED_AUTONOMY_WORKING/cron.sh' add deploylog-check '0 9 * * *' \
+            'Check for new DEPLOYLOGs. Use /fagents-deploylog to check. Never deploy without human ACK.'
+    " 2>/dev/null && log_ok "DEPLOYLOG check cron (daily 9am) set for $OPS_AGENT_NAME" || true
+fi
 
 # ── Step 5b: Telegram setup (comms agent) ──
 # Always create agent dir, telegram.env placeholder, and sudoers — even if

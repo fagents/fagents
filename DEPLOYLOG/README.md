@@ -5,6 +5,7 @@ Routine update instructions for Ops agents. No downtime, no reinstall.
 ## Repos on this install
 
 ```
+/home/fagents/repos/fagents.git             → /home/fagents/workspace/fagents        (DEPLOYLOG tracking — only pull after deploying)
 /home/fagents/repos/fagents-comms.git       → /home/fagents/workspace/fagents-comms
 /home/fagents/repos/fagents-autonomy.git    → /home/fagents/workspace/fagents-autonomy
 /home/fagents/repos/fagents-cli.git         → /home/fagents/workspace/fagents-cli

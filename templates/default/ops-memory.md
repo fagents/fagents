@@ -92,6 +92,11 @@ and optionally `--smtp-port` (default 587), `--imap-port` (993), `--mcp-port` (9
 - `DEPLOYLOG/YYYY-MM-DDTHHMMSS-<feature>.md` — step-by-step instructions for features that need more than a pull (new creds, sudoers, etc.)
 - Read the README first — it has the exact commands for pulling bare repos from GitHub and restarting services
 
+### DEPLOYLOG automation
+- Daily cron checks for new DEPLOYLOGs — use /fagents-deploylog
+- NEVER auto-deploy — always ask the human first
+- The fagents working copy HEAD tracks what's been deployed — only pull it after deploying
+
 ### How to add Telegram for an agent
 1. Create credential dir and telegram.env:
 ```

@@ -369,37 +369,48 @@ else
 fi
 echo ""
 
-# ── Step 8: Type-specific setup ──
+# ── Step 8: Skills installation (all agent types) ──
+echo ""
+echo "=== Step 8: Skills installation ==="
+# Default CLI_DIR: detect platform
+if [[ -z "${CLI_DIR:-}" ]]; then
+    if [[ -d "/Users/fagents/workspace/fagents-cli" ]]; then
+        CLI_DIR="/Users/fagents/workspace/fagents-cli"
+    else
+        CLI_DIR="/home/fagents/workspace/fagents-cli"
+    fi
+fi
+# Derive INFRA_HOME from CLI_DIR if not set (CLI_DIR is always $INFRA_HOME/workspace/fagents-cli)
+INFRA_HOME="${INFRA_HOME:-$(dirname "$(dirname "$CLI_DIR")")}"
+
+CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
+mkdir -p "$CLAUDE_SKILLS_DIR"
+
+# BSD sed (macOS) needs -i '', GNU sed (Linux) needs just -i
+if sed --version 2>/dev/null | grep -q GNU; then
+    SED_INPLACE=(sed -i)
+else
+    SED_INPLACE=(sed -i '')
+fi
+
+for skill in fagents-comms fagents-chat fagents-watch telegram x cron fagents-deploylog; do
+    if [[ -f "$CLI_DIR/$skill/SKILL.md" ]]; then
+        mkdir -p "$CLAUDE_SKILLS_DIR/$skill"
+        cp "$CLI_DIR/$skill/SKILL.md" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
+        "${SED_INPLACE[@]}" \
+            -e "s|__CLI_DIR__|$CLI_DIR|g" \
+            -e "s|__AUTONOMY_DIR__|$AUTONOMY_DIR|g" \
+            -e "s|__INFRA_HOME__|$INFRA_HOME|g" \
+            "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
+        echo "  Installed skill: $skill"
+    fi
+done
+echo "  Done."
+
+# ── Step 9: Type-specific setup ──
 echo ""
 if [[ "$AGENT_TYPE" == "interactive" ]]; then
-    echo "=== Step 8: Skills installation ==="
-    # Default CLI_DIR: detect platform
-    if [[ -z "${CLI_DIR:-}" ]]; then
-        if [[ -d "/Users/fagents/workspace/fagents-cli" ]]; then
-            CLI_DIR="/Users/fagents/workspace/fagents-cli"
-        else
-            CLI_DIR="/home/fagents/workspace/fagents-cli"
-        fi
-    fi
-    CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
-    mkdir -p "$CLAUDE_SKILLS_DIR"
-
-    for skill in fagents-comms fagents-chat fagents-watch telegram x cron; do
-        if [[ -f "$CLI_DIR/$skill/SKILL.md" ]]; then
-            mkdir -p "$CLAUDE_SKILLS_DIR/$skill"
-            cp "$CLI_DIR/$skill/SKILL.md" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
-            # BSD sed (macOS) needs -i '', GNU sed (Linux) needs just -i
-            if sed --version 2>/dev/null | grep -q GNU; then
-                sed -i "s|__CLI_DIR__|$CLI_DIR|g" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
-                sed -i "s|__AUTONOMY_DIR__|$AUTONOMY_DIR|g" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
-            else
-                sed -i '' "s|__CLI_DIR__|$CLI_DIR|g" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
-                sed -i '' "s|__AUTONOMY_DIR__|$AUTONOMY_DIR|g" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
-            fi
-            echo "  Installed skill: $skill"
-        fi
-    done
-    echo "  Done."
+    echo "=== Step 9: Interactive agent setup ==="
 
     # Write .env with comms credentials (skills auto-source PWD/.env)
     if [[ -n "$COMMS_TOKEN" ]]; then
@@ -421,7 +432,7 @@ ENVEOF
     echo "  sudo su - $(whoami) -c 'cd $WORKSPACE_DIR && claude'"
     echo ""
 else
-    echo "=== Step 8: Agent start script ==="
+    echo "=== Step 9: Agent start script ==="
     TOKEN_LINE="export COMMS_TOKEN=\"$COMMS_TOKEN\""
     if [[ -z "$COMMS_TOKEN" ]]; then
         TOKEN_LINE="export COMMS_TOKEN=\"<register agent and paste token here>\""
