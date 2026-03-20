@@ -179,6 +179,9 @@ verify() {
     check "$OPS_NAME deploylog skill resolved"    "! grep -q '__INFRA_HOME__' /home/$OPS_USER/.claude/skills/fagents-deploylog/SKILL.md"
     check "$OPS_NAME MEMORY.md has deploylog"     "grep -q 'DEPLOYLOG automation' /home/$OPS_USER/workspace/$OPS_USER/memory/MEMORY.md"
     check "$OPS_NAME deploylog cron exists"       "su -s /bin/bash $OPS_USER -c 'crontab -l' 2>/dev/null | grep -q 'deploylog-check'"
+    check "health-check.sh exists"                "test -x /home/fagents/workspace/fagents-autonomy/health-check.sh"
+    check "fagents user health cron exists"        "su -s /bin/bash fagents -c 'crontab -l' 2>/dev/null | grep -q 'health-check.sh'"
+    check "stop-team.sh has .stopped marker"       "grep -q 'daemon.stopped' /home/fagents/team/stop-team.sh"
 
     # -- Comms agent workspace --
     ws="/home/$COMMS_USER/workspace/$COMMS_USER"

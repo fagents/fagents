@@ -97,6 +97,12 @@ and optionally `--smtp-port` (default 587), `--imap-port` (993), `--mcp-port` (9
 - NEVER auto-deploy — always ask the human first
 - The fagents working copy HEAD tracks what's been deployed — only pull it after deploying
 
+### Daemon health check
+- System cron (fagents user) checks every hour if daemon agents are alive
+- Posts alert to #general if an agent is unexpectedly down
+- Intentional stops (via stop-team.sh) are NOT alerted
+- **You (ops) own this**: if you see a health alert, check the agent's daemon.log, investigate, and restart if appropriate: `sudo systemctl restart fagents`
+
 ### How to add Telegram for an agent
 1. Create credential dir and telegram.env:
 ```

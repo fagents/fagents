@@ -962,6 +962,8 @@ for i in "${!AGENT_NAMES[@]}"; do
     user="${AGENT_USERS[$i]}"
     user_home="/Users/$user"
     cat >> "$TEAM_DIR/stop-team.sh" << AGENTSTOP
+mkdir -p "$user_home/workspace/$user/.autonomy"
+touch "$user_home/workspace/$user/.autonomy/daemon.stopped"
 stop_pid_file "$name" "$user_home/workspace/$user/.autonomy/daemon.pid"
 AGENTSTOP
 done
@@ -1013,6 +1015,19 @@ cp "$SCRIPT_DIR/install-agent.sh" "$TEAM_DIR/install-agent.sh"
 chmod +x "$TEAM_DIR/install-agent.sh"
 
 chown -R "$INFRA_USER:fagent" "$TEAM_DIR"
+
+# Health check cron — fagents user checks daemon liveness every hour
+HEALTH_CHECK="$SHARED_AUTONOMY_WORKING/health-check.sh"
+if [[ -f "$HEALTH_CHECK" ]]; then
+    _cron_line="0 * * * * bash $HEALTH_CHECK"
+    _existing=$(sudo -Hu"$INFRA_USER" bash -lc "crontab -l" 2>/dev/null || true)
+    _new=$(echo "$_existing" | grep -v 'health-check.sh'; echo "$_cron_line")
+    if echo "$_new" | sudo -Hu"$INFRA_USER" bash -lc "crontab -" 2>/dev/null; then
+        log_ok "Health check cron (hourly) set for $INFRA_USER"
+    else
+        log_warn "Failed to set health check cron for $INFRA_USER"
+    fi
+fi
 
 # ── Launchd plist for boot persistence ──
 cat > /Library/LaunchDaemons/ai.fagents.plist << PLISTEOF
