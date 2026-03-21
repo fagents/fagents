@@ -20,7 +20,6 @@ set -euo pipefail
 INFRA_USER="fagents"
 INFRA_HOME=$(eval echo "~$INFRA_USER")
 MCP_DIR="$INFRA_HOME/workspace/fagents-mcp"
-AGENTS_JSON="$MCP_DIR/agents.json"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Parse flags ──
@@ -105,8 +104,8 @@ if [[ -z "$AGENT_MODE" ]]; then
         echo "Add email credentials for an agent"
         echo ""
 
-        # Show existing agents
-        existing=$(jq -r '.agents | keys[]' "$AGENTS_JSON" 2>/dev/null || true)
+        # Show existing agents with email
+        existing=$(find "$INFRA_HOME/.agents" -name email.env 2>/dev/null | while read -r f; do basename "$(dirname "$f")"; done | tr '\n' ' ')
         if [[ -n "$existing" ]]; then
             echo "Already configured: $existing"
             echo ""
@@ -262,5 +261,5 @@ else
 fi
 
 # ── Write .mcp.json for the agent ──
-_mcp_port=$(grep -oP 'MCP_PORT=\K\d+' "$MCP_DIR/.env" 2>/dev/null || echo "9755")
+_mcp_port=$(grep 'MCP_PORT=' "$MCP_DIR/.env" 2>/dev/null | cut -d= -f2 || echo "9755")
 write_mcp_json "$_mcp_port" "$TOKEN" "$AGENT_USER"

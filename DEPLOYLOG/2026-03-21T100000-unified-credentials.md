@@ -73,7 +73,7 @@ else
             [ -d "$user_dir" ] || continue
             user=$(basename "$user_dir")
             ws=$(eval echo "~$user")/workspace/$user
-            if grep -q "$token" "$ws/start-agent.sh" 2>/dev/null; then
+            if grep -qF "$token" "$ws/start-agent.sh" 2>/dev/null; then
                 username="$user"
                 break
             fi
