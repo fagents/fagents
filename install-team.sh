@@ -816,7 +816,7 @@ fi
 if [[ -n "$EMAIL_ENABLED" ]]; then
     log_step "Step 5b: Email setup"
 
-    email_agent_args=(--agent "$COMMS_AGENT_NAME:${AGENT_TOKENS[$COMMS_AGENT_NAME]:-}:${EMAIL_FROM[$COMMS_AGENT_NAME]:-}:${EMAIL_SMTP_USER[$COMMS_AGENT_NAME]:-}:${EMAIL_SMTP_PASS[$COMMS_AGENT_NAME]:-}:${EMAIL_IMAP_USER[$COMMS_AGENT_NAME]:-}:${EMAIL_IMAP_PASS[$COMMS_AGENT_NAME]:-}")
+    email_agent_args=(--agent "$COMMS_AGENT_NAME:${AGENT_TOKENS[$COMMS_AGENT_NAME]:-}:${EMAIL_FROM[$COMMS_AGENT_NAME]:-}:${EMAIL_SMTP_USER[$COMMS_AGENT_NAME]:-}:${EMAIL_SMTP_PASS[$COMMS_AGENT_NAME]:-}:${EMAIL_IMAP_USER[$COMMS_AGENT_NAME]:-}:${EMAIL_IMAP_PASS[$COMMS_AGENT_NAME]:-}:$COMMS_USER")
 
     # Ensure Node.js is available
     if ! command -v node &>/dev/null; then

@@ -57,7 +57,7 @@ fi
 
 # ── Detect first-time setup ──
 FIRST_TIME=""
-if [[ ! -f "$AGENTS_JSON" ]]; then
+if [[ ! -d "$MCP_DIR" ]] || ! systemctl is-enabled --quiet fagents-mcp 2>/dev/null; then
     FIRST_TIME=1
     echo "fagents-mcp not installed — running first-time setup"
     echo ""
@@ -169,7 +169,7 @@ if [[ -n "$FIRST_TIME" ]]; then
         --port "$MCP_PORT" \
         --dir "$MCP_DIR" \
         --user "$INFRA_USER" \
-        --agent "$NAME:$TOKEN:$FROM:$SMTP_USER:$SMTP_PASS:$IMAP_USER:$IMAP_PASS"
+        --agent "$NAME:$TOKEN:$FROM:$SMTP_USER:$SMTP_PASS:$IMAP_USER:$IMAP_PASS:$AGENT_USER"
 
     # Create #email-log channel for gate_email audit trail
     _comms_url="http://127.0.0.1:9754"
@@ -183,10 +183,45 @@ if [[ -n "$FIRST_TIME" ]]; then
     exit 0
 fi
 
-# ── Existing install: update agents.json ──
+# ── Existing install: write email.env to .agents/ ──
 
-# Check if agent already exists
-if jq -e --arg name "$NAME" '.agents[$name]' "$AGENTS_JSON" &>/dev/null; then
+AGENTS_DIR="$INFRA_HOME/.agents"
+
+# Resolve unix username
+if [[ -z "$AGENT_USER" ]]; then
+    echo "ERROR: --user <unix-username> is required" >&2
+    exit 1
+fi
+
+# Read shared SMTP/IMAP config if not provided (from existing email.env files)
+if [[ -z "$SMTP_HOST" || -z "$IMAP_HOST" ]]; then
+    # Try to read from an existing agent's email.env
+    _existing_env=$(find "$AGENTS_DIR" -name email.env -print -quit 2>/dev/null)
+    if [[ -n "$_existing_env" ]]; then
+        [[ -z "$SMTP_HOST" ]] && SMTP_HOST=$(grep '^SMTP_HOST=' "$_existing_env" | cut -d= -f2-)
+        [[ -z "$SMTP_PORT" ]] && SMTP_PORT=$(grep '^SMTP_PORT=' "$_existing_env" | cut -d= -f2-)
+        [[ -z "$IMAP_HOST" ]] && IMAP_HOST=$(grep '^IMAP_HOST=' "$_existing_env" | cut -d= -f2-)
+        [[ -z "$IMAP_PORT" ]] && IMAP_PORT=$(grep '^IMAP_PORT=' "$_existing_env" | cut -d= -f2-)
+    fi
+    # Still missing? Ask interactively
+    if [[ -z "$SMTP_HOST" && -z "$AGENT_MODE" ]]; then
+        read -rp "SMTP host (e.g. smtp.gmail.com): " SMTP_HOST
+        [[ -z "$SMTP_PORT" ]] && read -rp "SMTP port [587]: " SMTP_PORT
+        read -rp "IMAP host (e.g. imap.gmail.com): " IMAP_HOST
+        [[ -z "$IMAP_PORT" ]] && read -rp "IMAP port [993]: " IMAP_PORT
+    fi
+fi
+SMTP_PORT="${SMTP_PORT:-587}"
+IMAP_PORT="${IMAP_PORT:-993}"
+
+if [[ -z "$SMTP_HOST" || -z "$IMAP_HOST" ]]; then
+    echo "ERROR: SMTP_HOST and IMAP_HOST are required (use --smtp-host, --imap-host)" >&2
+    exit 1
+fi
+
+# Check if agent already has email.env
+EMAIL_ENV="$AGENTS_DIR/$AGENT_USER/email.env"
+if [[ -f "$EMAIL_ENV" ]]; then
     if [[ -z "$AGENT_MODE" ]]; then
         read -rp "$NAME already has email configured. Overwrite? [y/N]: " confirm
         [[ "${confirm,,}" =~ ^y ]] || { echo "Aborted."; exit 0; }
@@ -195,20 +230,21 @@ if jq -e --arg name "$NAME" '.agents[$name]' "$AGENTS_JSON" &>/dev/null; then
     fi
 fi
 
-tmp=$(mktemp)
-jq --arg name "$NAME" \
-   --arg token "$TOKEN" \
-   --arg from "$FROM" \
-   --arg su "$SMTP_USER" \
-   --arg sp "$SMTP_PASS" \
-   --arg iu "$IMAP_USER" \
-   --arg ip "$IMAP_PASS" \
-   '.agents[$name] = {"apiKey": $token, "SMTP_FROM": $from, "SMTP_USER": $su, "SMTP_PASS": $sp, "IMAP_USER": $iu, "IMAP_PASS": $ip}' \
-   "$AGENTS_JSON" > "$tmp"
-
-mv "$tmp" "$AGENTS_JSON"
-chown "$INFRA_USER" "$AGENTS_JSON"
-chmod 600 "$AGENTS_JSON"
+mkdir -p "$AGENTS_DIR/$AGENT_USER"
+cat > "$EMAIL_ENV" << EMAILEOF
+MCP_API_KEY=$TOKEN
+SMTP_HOST=$SMTP_HOST
+SMTP_PORT=$SMTP_PORT
+SMTP_FROM=$FROM
+SMTP_USER=$SMTP_USER
+SMTP_PASS=$SMTP_PASS
+IMAP_HOST=$IMAP_HOST
+IMAP_PORT=$IMAP_PORT
+IMAP_USER=$IMAP_USER
+IMAP_PASS=$IMAP_PASS
+EMAILEOF
+chown "$INFRA_USER:fagent" "$EMAIL_ENV"
+chmod 600 "$EMAIL_ENV"
 
 # ── Restart MCP service ──
 if systemctl is-active --quiet fagents-mcp 2>/dev/null; then

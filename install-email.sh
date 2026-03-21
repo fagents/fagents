@@ -1,12 +1,12 @@
 #!/bin/bash
 # install-email.sh — Set up fagents-mcp email server for a team
 #
-# Installs fagents-mcp, configures SMTP/IMAP, generates agents.json,
-# and creates a systemd service.
+# Installs fagents-mcp, configures SMTP/IMAP, writes per-agent email.env
+# files to .agents/, and creates a systemd service.
 #
 # Usage (called by install-team.sh):
 #   install-email.sh --port PORT --dir DIR --user USER \
-#     --agent "name:token:from:smtp_user:smtp_pass:imap_user:imap_pass" [--agent ...]
+#     --agent "name:token:from:smtp_user:smtp_pass:imap_user:imap_pass:unix_user" [--agent ...]
 #
 # SMTP/IMAP host/port via environment variables (shared across agents):
 #   SMTP_HOST, SMTP_PORT, IMAP_HOST, IMAP_PORT
@@ -87,50 +87,45 @@ su - "$SERVICE_USER" -c "cd '$INSTALL_DIR' && npm run build" > /dev/null 2>&1
 # ── Generate .env ──
 cat > "$INSTALL_DIR/.env" << EOF
 MCP_PORT=$EMAIL_PORT
+AGENTS_DIR=$(eval echo "~$SERVICE_USER")/.agents
 EOF
 chown "$SERVICE_USER" "$INSTALL_DIR/.env"
 chmod 600 "$INSTALL_DIR/.env"
 
-# ── Generate agents.json ──
-# Each agent gets its own credentials. Host/port are shared (non-secret).
-# Spec format: name:token:from:smtp_user:smtp_pass:imap_user:imap_pass
+# ── Generate email.env files in .agents/ ──
+# Spec format: name:token:from:smtp_user:smtp_pass:imap_user:imap_pass:unix_user
 # Note: ':' in passwords is not supported.
-agents_obj='{}'
+AGENTS_DIR="$(eval echo "~$SERVICE_USER")/.agents"
+mkdir -p "$AGENTS_DIR"
+
+_first_token=""
 for spec in "${AGENT_SPECS[@]}"; do
-    IFS=':' read -r name token from_addr smtp_user smtp_pass imap_user imap_pass <<< "$spec"
+    IFS=':' read -r name token from_addr smtp_user smtp_pass imap_user imap_pass unix_user <<< "$spec"
     [[ -z "$smtp_user" ]] && { echo "ERROR: no smtp_user for agent '$name'" >&2; exit 1; }
     [[ -z "$smtp_pass" ]] && { echo "ERROR: no smtp_pass for agent '$name'" >&2; exit 1; }
     [[ -z "$imap_user" ]] && { echo "ERROR: no imap_user for agent '$name'" >&2; exit 1; }
     [[ -z "$imap_pass" ]] && { echo "ERROR: no imap_pass for agent '$name'" >&2; exit 1; }
-    agents_obj=$(echo "$agents_obj" | jq \
-        --arg name "$name" \
-        --arg token "$token" \
-        --arg from "$from_addr" \
-        --arg su "$smtp_user" \
-        --arg sp "$smtp_pass" \
-        --arg iu "$imap_user" \
-        --arg ip "$imap_pass" \
-        '.[$name] = {"apiKey": $token, "SMTP_FROM": $from, "SMTP_USER": $su, "SMTP_PASS": $sp, "IMAP_USER": $iu, "IMAP_PASS": $ip}')
+    [[ -z "$unix_user" ]] && { echo "ERROR: no unix_user for agent '$name'" >&2; exit 1; }
+
+    mkdir -p "$AGENTS_DIR/$unix_user"
+    cat > "$AGENTS_DIR/$unix_user/email.env" << EMAILEOF
+MCP_API_KEY=$token
+SMTP_HOST=$SMTP_HOST
+SMTP_PORT=${SMTP_PORT:-587}
+SMTP_FROM=$from_addr
+SMTP_USER=$smtp_user
+SMTP_PASS=$smtp_pass
+IMAP_HOST=$IMAP_HOST
+IMAP_PORT=${IMAP_PORT:-993}
+IMAP_USER=$imap_user
+IMAP_PASS=$imap_pass
+EMAILEOF
+    chown "$SERVICE_USER:fagent" "$AGENTS_DIR/$unix_user/email.env"
+    chmod 600 "$AGENTS_DIR/$unix_user/email.env"
+    echo "  $name ($unix_user): email.env written"
+
+    [[ -z "$_first_token" ]] && _first_token="$token"
 done
-
-jq -n \
-    --argjson agents "$agents_obj" \
-    --arg smtp_host "$SMTP_HOST" \
-    --arg smtp_port "${SMTP_PORT:-587}" \
-    --arg imap_host "$IMAP_HOST" \
-    --arg imap_port "${IMAP_PORT:-993}" \
-    '{
-        agents: $agents,
-        shared: {
-            SMTP_HOST: $smtp_host,
-            SMTP_PORT: $smtp_port,
-            IMAP_HOST: $imap_host,
-            IMAP_PORT: $imap_port
-        }
-    }' > "$INSTALL_DIR/agents.json"
-
-chown "$SERVICE_USER" "$INSTALL_DIR/agents.json"
-chmod 600 "$INSTALL_DIR/agents.json"
 
 # ── Create systemd service ──
 SERVICE_NAME="fagents-mcp"
@@ -160,7 +155,7 @@ systemctl restart "$SERVICE_NAME"
 
 # Wait for it to come up and verify MCP endpoint works
 # Extract first agent's API key for the MCP endpoint test
-TEST_KEY=$(jq -r '.agents | to_entries[0].value.apiKey' "$INSTALL_DIR/agents.json")
+TEST_KEY="$_first_token"
 
 verify_mcp() {
     # Check /health first (basic HTTP)
