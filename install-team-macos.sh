@@ -260,6 +260,8 @@ EMAIL_PORT="${EMAIL_PORT:-9755}"
 if [[ -z "${NONINTERACTIVE:-}" ]]; then
     echo ""
     read -rp "Enable email for $COMMS_AGENT_NAME? [y/N]: " enable_email
+elif [[ -n "${EMAIL_ENABLE:-}" ]]; then
+    enable_email="y"
 fi
 if [[ "${enable_email,,}" =~ ^y ]]; then
     echo ""
@@ -847,6 +849,25 @@ if [[ -n "$EMAIL_ENABLED" ]]; then
         # Add MCP to comms agent's workspace
         agent_ws="$(eval echo "~$COMMS_USER")/workspace/$COMMS_USER"
         add_mcp_server "$agent_ws" "$COMMS_USER" "fagents-mcp" "http://127.0.0.1:$EMAIL_PORT/mcp" "${AGENT_TOKENS[$COMMS_AGENT_NAME]:-}"
+
+        from_addr="${EMAIL_FROM[$COMMS_AGENT_NAME]:-}"
+        cat >> "$agent_ws/memory/MEMORY.md" <<EMAILEOF
+
+## Email Tools
+- You have email via MCP (fagents-mcp). Tools: send_email, read_email, list_emails, search_emails, list_mailboxes, download_attachment
+- Your sending address: ${from_addr}
+- Do NOT try to configure email yourself — it is already set up. Just call the tools directly
+- Do NOT use Bash to search for MCP config, API keys, or ports — the tools are available in your tool list automatically
+EMAILEOF
+        chown "$COMMS_USER:fagent" "$agent_ws/memory/MEMORY.md"
+        # Create #email-log channel for gate_email audit trail
+        curl -sf -X POST "http://127.0.0.1:$COMMS_PORT/api/channels/email-log/messages" \
+            -H "Authorization: Bearer ${AGENT_TOKENS[$COMMS_AGENT_NAME]:-}" \
+            -H "Content-Type: application/json" \
+            -d '{"message": "Email audit log initialized."}' > /dev/null 2>&1 || true
+        log_ok "#email-log channel created"
+
+        log_ok "$COMMS_AGENT_NAME: email configured"
     fi
     echo ""
 fi
