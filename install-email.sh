@@ -127,11 +127,51 @@ EMAILEOF
     [[ -z "$_first_token" ]] && _first_token="$token"
 done
 
-# ── Create systemd service ──
+# ── Create service (systemd on Linux, launchd on macOS) ──
 SERVICE_NAME="fagents-mcp"
 NODE_BIN=$(command -v node)
 
-cat > "/etc/systemd/system/${SERVICE_NAME}.service" << EOF
+if [[ "$(uname)" == "Darwin" ]]; then
+    # macOS: launchd plist
+    PLIST="/Library/LaunchDaemons/ai.fagents-mcp.plist"
+    cat > "$PLIST" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.fagents-mcp</string>
+    <key>UserName</key>
+    <string>$SERVICE_USER</string>
+    <key>WorkingDirectory</key>
+    <string>$INSTALL_DIR</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$NODE_BIN</string>
+        <string>dist/server.js</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$INSTALL_DIR/fagents-mcp.log</string>
+    <key>StandardErrorPath</key>
+    <string>$INSTALL_DIR/fagents-mcp.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>NODE_ENV</key>
+        <string>production</string>
+    </dict>
+</dict>
+</plist>
+EOF
+    chmod 644 "$PLIST"
+    launchctl bootout system/ai.fagents-mcp 2>/dev/null || true
+    launchctl bootstrap system "$PLIST"
+else
+    # Linux: systemd service
+    cat > "/etc/systemd/system/${SERVICE_NAME}.service" << EOF
 [Unit]
 Description=fagents-mcp — email MCP server
 After=network.target
@@ -149,9 +189,10 @@ Environment=NODE_ENV=production
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload
-systemctl enable "$SERVICE_NAME" --quiet 2>/dev/null
-systemctl restart "$SERVICE_NAME"
+    systemctl daemon-reload
+    systemctl enable "$SERVICE_NAME" --quiet 2>/dev/null
+    systemctl restart "$SERVICE_NAME"
+fi
 
 # Wait for it to come up and verify MCP endpoint works
 # Extract first agent's API key for the MCP endpoint test
@@ -181,7 +222,11 @@ done
 
 if [[ -z "$MCP_OK" ]]; then
     echo "  MCP endpoint not responding — restarting service..."
-    systemctl restart "$SERVICE_NAME"
+    if [[ "$(uname)" == "Darwin" ]]; then
+        launchctl kickstart -k system/ai.fagents-mcp
+    else
+        systemctl restart "$SERVICE_NAME"
+    fi
     for i in 1 2 3 4 5; do
         sleep 1
         if verify_mcp; then
@@ -195,5 +240,9 @@ if [[ -n "$MCP_OK" ]]; then
     echo "  Email MCP server running on port $EMAIL_PORT (verified)"
 else
     echo "  WARNING: Email MCP server may not have started correctly."
-    echo "  Check: journalctl -u $SERVICE_NAME -n 20"
+    if [[ "$(uname)" == "Darwin" ]]; then
+        echo "  Check: cat $INSTALL_DIR/fagents-mcp.log"
+    else
+        echo "  Check: journalctl -u $SERVICE_NAME -n 20"
+    fi
 fi

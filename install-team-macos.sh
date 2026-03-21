@@ -97,6 +97,26 @@ log_ok() { echo -e "  ${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
 log_err() { echo -e "  ${RED}✗${NC} $1"; }
 
+# ── MCP helper: add a server to an agent's .mcp.json ──
+add_mcp_server() {
+    local ws_dir="$1" owner="$2" name="$3" url="$4" api_key="$5"
+    local mcp_file="$ws_dir/.mcp.json"
+
+    if [[ -f "$mcp_file" ]]; then
+        local tmp
+        tmp=$(jq --arg name "$name" --arg url "$url" --arg key "$api_key" \
+            '.mcpServers[$name] = {"type": "http", "url": $url, "headers": {"x-api-key": $key}}' \
+            "$mcp_file")
+        echo "$tmp" > "$mcp_file"
+    else
+        jq -n --arg name "$name" --arg url "$url" --arg key "$api_key" \
+            '{mcpServers: {($name): {"type": "http", "url": $url, "headers": {"x-api-key": $key}}}}' \
+            > "$mcp_file"
+    fi
+    chown "$owner:fagent" "$mcp_file"
+    chmod 600 "$mcp_file"
+}
+
 # ── Memory check ──
 _mem_mb=$(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1048576 ))
 if [[ "$_mem_mb" -gt 0 && "$_mem_mb" -lt 2048 ]]; then
@@ -226,6 +246,42 @@ if [[ -z "$SKIP_CLAUDE_AUTH" && -z "${NONINTERACTIVE:-}" ]]; then
     echo "  curl -fsSL https://claude.ai/install.sh | bash && export PATH=\"\$HOME/.local/bin:\$PATH\" && claude setup-token"
     echo "Then paste the token here."
     read -rp "Claude OAuth token (or Enter to skip): " CLAUDE_TOKEN
+fi
+
+# ── Email config (scoped to comms agent) ──
+declare -A EMAIL_FROM
+declare -A EMAIL_SMTP_USER
+declare -A EMAIL_SMTP_PASS
+declare -A EMAIL_IMAP_USER
+declare -A EMAIL_IMAP_PASS
+EMAIL_ENABLED=""
+enable_email=""
+EMAIL_PORT="${EMAIL_PORT:-9755}"
+if [[ -z "${NONINTERACTIVE:-}" ]]; then
+    echo ""
+    read -rp "Enable email for $COMMS_AGENT_NAME? [y/N]: " enable_email
+fi
+if [[ "${enable_email,,}" =~ ^y ]]; then
+    echo ""
+    echo "  Mail server (same host for SMTP and IMAP):"
+    prompt smtp_host "    SMTP host" ""
+    prompt smtp_port "    SMTP port" "587"
+    prompt imap_host "    IMAP host" "$smtp_host"
+    prompt imap_port "    IMAP port" "993"
+    echo ""
+    echo "  Comms agent email credentials:"
+    read -rp "    Sends as (from address): " from_addr
+    prompt _su "    SMTP user" ""
+    read -rsp "    SMTP password: " _sp; echo ""
+    prompt _iu "    IMAP user" "$_su"
+    read -rsp "    IMAP password (Enter = same as SMTP): " _ip; echo ""
+    [[ -z "$_ip" ]] && _ip="$_sp"
+    EMAIL_FROM[$COMMS_AGENT_NAME]="$from_addr"
+    EMAIL_SMTP_USER[$COMMS_AGENT_NAME]="$_su"
+    EMAIL_SMTP_PASS[$COMMS_AGENT_NAME]="$_sp"
+    EMAIL_IMAP_USER[$COMMS_AGENT_NAME]="$_iu"
+    EMAIL_IMAP_PASS[$COMMS_AGENT_NAME]="$_ip"
+    EMAIL_ENABLED=1
 fi
 
 # ── Telegram config (scoped to comms agent) ──
@@ -766,10 +822,39 @@ if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && [[ -d "$OPS_HOME/workspace/$OPS_USER" 
     " 2>/dev/null && log_ok "DEPLOYLOG check cron (daily 9am) set for $OPS_AGENT_NAME" || true
 fi
 
-# ── Step 5b: Telegram setup (comms agent) ──
+# ── Step 5b: Email MCP setup (comms agent) ──
+if [[ -n "$EMAIL_ENABLED" ]]; then
+    log_step "Step 5b: Email setup"
+
+    email_agent_args=(--agent "$COMMS_AGENT_NAME:${AGENT_TOKENS[$COMMS_AGENT_NAME]:-}:${EMAIL_FROM[$COMMS_AGENT_NAME]:-}:${EMAIL_SMTP_USER[$COMMS_AGENT_NAME]:-}:${EMAIL_SMTP_PASS[$COMMS_AGENT_NAME]:-}:${EMAIL_IMAP_USER[$COMMS_AGENT_NAME]:-}:${EMAIL_IMAP_PASS[$COMMS_AGENT_NAME]:-}:$COMMS_USER")
+
+    # Ensure Node.js is available
+    if ! command -v node &>/dev/null; then
+        echo "  Node.js not found — email setup requires Node.js 18+"
+        echo "  Install with: brew install node"
+        log_warn "Skipping email setup (no Node.js)"
+    else
+        SMTP_HOST="$smtp_host" \
+        SMTP_PORT="$smtp_port" \
+        IMAP_HOST="$imap_host" \
+        IMAP_PORT="$imap_port" \
+        bash "$SCRIPT_DIR/install-email.sh" \
+            --port "$EMAIL_PORT" \
+            --dir "$INFRA_HOME/workspace/fagents-mcp" \
+            --user "$INFRA_USER" \
+            "${email_agent_args[@]}"
+
+        # Add MCP to comms agent's workspace
+        agent_ws="$(eval echo "~$COMMS_USER")/workspace/$COMMS_USER"
+        add_mcp_server "$agent_ws" "$COMMS_USER" "fagents-mcp" "http://127.0.0.1:$EMAIL_PORT/mcp" "${AGENT_TOKENS[$COMMS_AGENT_NAME]:-}"
+    fi
+    echo ""
+fi
+
+# ── Step 5c: Telegram setup (comms agent) ──
 # Always create agent dir, telegram.env placeholder, and sudoers — even if
 # Telegram was skipped during install. Adding the token post-install just works.
-log_step "Step 5b: Telegram setup"
+log_step "Step 5c: Telegram setup"
 
 mkdir -p "$INFRA_HOME/.agents"
 agent_dir="$INFRA_HOME/.agents/$COMMS_USER"

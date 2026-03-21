@@ -56,7 +56,13 @@ fi
 
 # ── Detect first-time setup ──
 FIRST_TIME=""
-if [[ ! -d "$MCP_DIR" ]] || ! systemctl is-enabled --quiet fagents-mcp 2>/dev/null; then
+_mcp_running=""
+if [[ "$(uname)" == "Darwin" ]]; then
+    launchctl list ai.fagents-mcp &>/dev/null && _mcp_running=1
+else
+    systemctl is-enabled --quiet fagents-mcp 2>/dev/null && _mcp_running=1
+fi
+if [[ ! -d "$MCP_DIR" ]] || [[ -z "$_mcp_running" ]]; then
     FIRST_TIME=1
     echo "fagents-mcp not installed — running first-time setup"
     echo ""
@@ -246,18 +252,28 @@ chown "$INFRA_USER:fagent" "$EMAIL_ENV"
 chmod 600 "$EMAIL_ENV"
 
 # ── Restart MCP service ──
-if systemctl is-active --quiet fagents-mcp 2>/dev/null; then
-    systemctl restart fagents-mcp
-    sleep 1
-    if systemctl is-active --quiet fagents-mcp; then
+if [[ "$(uname)" == "Darwin" ]]; then
+    if launchctl list ai.fagents-mcp &>/dev/null; then
+        launchctl kickstart -k system/ai.fagents-mcp
+        sleep 1
         echo "Email configured for $NAME — fagents-mcp restarted"
     else
-        echo "WARNING: fagents-mcp failed to restart after update" >&2
-        echo "Check: journalctl -u fagents-mcp -n 20" >&2
-        exit 1
+        echo "Email configured for $NAME — fagents-mcp not running"
     fi
 else
-    echo "Email configured for $NAME — fagents-mcp not running (start with: sudo systemctl start fagents-mcp)"
+    if systemctl is-active --quiet fagents-mcp 2>/dev/null; then
+        systemctl restart fagents-mcp
+        sleep 1
+        if systemctl is-active --quiet fagents-mcp; then
+            echo "Email configured for $NAME — fagents-mcp restarted"
+        else
+            echo "WARNING: fagents-mcp failed to restart after update" >&2
+            echo "Check: journalctl -u fagents-mcp -n 20" >&2
+            exit 1
+        fi
+    else
+        echo "Email configured for $NAME — fagents-mcp not running (start with: sudo systemctl start fagents-mcp)"
+    fi
 fi
 
 # ── Write .mcp.json for the agent ──
