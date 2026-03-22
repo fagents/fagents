@@ -155,7 +155,7 @@ verify() {
         CHANNELS=$(curl -sf --max-time 5 -H "$AUTH" "http://127.0.0.1:$COMMS_PORT/api/channels")
         check "general channel exists" "echo '$CHANNELS' | jq -e '.[] | select(.name == \"general\")'"
         check "$OPS_USER channel exists" "echo '$CHANNELS' | jq -e '.[] | select(.name == \"$OPS_USER\")'"
-        check "$COMMS_USER channel exists" "test -f /home/fagents/workspace/fagents-comms/channels/$COMMS_USER.log"
+        check "$COMMS_USER channel exists" "test -f /home/fagents/.agents/comms/channels/$COMMS_USER.log"
     else
         not_ok "could not read admin token — skipping comms API checks"
     fi

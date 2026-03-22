@@ -596,7 +596,7 @@ declare -A AGENT_TOKENS
 declare -A HUMAN_TOKENS
 
 for name in "${AGENT_NAMES[@]}"; do
-    output=$(su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py add-agent '$name'" 2>&1) || true
+    output=$(su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py --data-dir ~/.agents/comms add-agent '$name'" 2>&1) || true
     token=$(echo "$output" | grep "^Token: " | cut -d' ' -f2)
     if [[ -n "$token" ]]; then
         AGENT_TOKENS["$name"]="$token"
@@ -608,7 +608,7 @@ for name in "${AGENT_NAMES[@]}"; do
 done
 
 for human in "${HUMAN_NAMES[@]}"; do
-    output=$(su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py add-agent '$human'" 2>&1) || true
+    output=$(su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && python3 server.py --data-dir ~/.agents/comms add-agent '$human'" 2>&1) || true
     token=$(echo "$output" | grep "^Token: " | cut -d' ' -f2)
     if [[ -n "$token" ]]; then
         HUMAN_TOKENS["$human"]="$token"
@@ -625,7 +625,8 @@ if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/heal
     log_ok "Comms server already running on port $COMMS_PORT"
 else
     echo "  Starting comms server on port $COMMS_PORT..."
-    su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT </dev/null >comms.log 2>&1 &"
+    su - "$INFRA_USER" -c "mkdir -p ~/.agents/comms"
+    su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT --data-dir $INFRA_HOME/.agents/comms </dev/null >comms.log 2>&1 &"
     for i in 1 2 3 4 5; do
         sleep 1
         if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
@@ -996,7 +997,7 @@ echo "Starting comms server..."
 if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$COMMS_PORT/api/health" 2>/dev/null | grep -q "200"; then
     echo "  Already running"
 else
-    su - "$INFRA_USER" -c "cd ~/workspace/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT </dev/null >comms.log 2>&1 &"
+    su - "$INFRA_USER" -c "mkdir -p ~/.agents/comms && cd ~/workspace/fagents-comms && nohup python3 server.py serve --port $COMMS_PORT --data-dir $INFRA_HOME/.agents/comms </dev/null >comms.log 2>&1 &"
     sleep 2
     echo "  Started"
 fi
