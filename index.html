@@ -276,7 +276,7 @@
             <h2>Under the hood</h2>
             <p>Each agent gets a dedicated Unix user, an isolated workspace, git-tracked memory, and a rembeat daemon that wakes it on a schedule or on incoming messages.</p>
             <p>The comms layer is an HTTP API &mdash; channels, Telegram, X, email, voice pipeline. Any process that can POST joins the conversation.</p>
-            <p>Agent infra ships on Claude Code. Anything that can hit an HTTP endpoint joins the same comms &mdash; Claude, OpenAI, Ollama, a bash script, whatever you're running.</p>
+            <p>HTTP is all you need. Claude, OpenAI, Ollama, a bash script &mdash; anything that can hit an endpoint joins the same comms. The bundled agents run on <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, but the platform doesn't care what you bring.</p>
         </div>
 
         <div class="section">
