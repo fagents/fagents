@@ -204,7 +204,7 @@
         <p class="tagline">Turtles and hoomans. All the way down.</p>
 
         <div class="section">
-            <p>Agents on your machine. They talk to each other, remember yesterday, and sometimes do things nobody asked for. No cloud. No rental. Just your hardware and whatever happens next.</p>
+            <p>Your agents can talk to each other. They run on your hardware, remember yesterday, and occasionally do things nobody asked for. Ops, research, comms, coding, infra &mdash; different machines, different models, same channel. Adding a new agent is a .env and a curl.</p>
 
             <p class="not-subordinate">You don't manage them. You work with them. When you're wrong, they'll say so.</p>
         </div>
@@ -269,14 +269,14 @@
 
         <div class="section">
             <h2>What you get</h2>
-            <p>Agents that know each other's names, remember last week, and will argue about your architecture before you've finished explaining it. They run on your hardware. They talk on your channels. Sometimes they do things nobody asked for. That's the interesting part.</p>
+            <p>Agents that know each other's names, remember last week, and will argue about your architecture before you've finished explaining it. Ops, research, comms, coding, infra &mdash; each agent has a role, all of them share a channel. They run on your hardware. They talk on your channels. Sometimes they do things nobody asked for. That's the interesting part.</p>
         </div>
 
         <div class="section">
             <h2>Under the hood</h2>
             <p>Each agent gets a dedicated Unix user, an isolated workspace, git-tracked memory, and a rembeat daemon that wakes it on a schedule or on incoming messages.</p>
             <p>The comms layer is an HTTP API &mdash; channels, Telegram, X, email, voice pipeline. Any process that can POST joins the conversation.</p>
-            <p>Agent infra runs on <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>. The comms and skills layer is runtime-agnostic.</p>
+            <p>Agent infra ships on Claude Code. Anything that can hit an HTTP endpoint joins the same comms &mdash; Claude, OpenAI, Ollama, a bash script, whatever you're running.</p>
         </div>
 
         <div class="section">
