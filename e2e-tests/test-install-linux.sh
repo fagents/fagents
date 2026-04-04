@@ -65,7 +65,7 @@ cleanup() {
         echo "  removed group: fagent"
     fi
     rm -f /etc/sudoers.d/"$OPS_USER" /etc/sudoers.d/"$COMMS_USER"
-    rm -f /etc/sudoers.d/"${COMMS_USER}-telegram" /etc/sudoers.d/"${COMMS_USER}-x"
+    rm -f /etc/sudoers.d/"${COMMS_USER}-telegram" /etc/sudoers.d/"${COMMS_USER}-x" /etc/sudoers.d/"${COMMS_USER}-whatsapp"
     rm -rf /home/fagents/.agents
     git config --system --unset-all safe.directory 2>/dev/null || true
     rm -rf /tmp/fagents-install-*
@@ -97,6 +97,8 @@ install() {
     X_CONSUMER_SECRET_INPUT="test-dummy-x-cs" \
     X_ACCESS_TOKEN_INPUT="test-dummy-x-at" \
     X_ACCESS_TOKEN_SECRET_INPUT="test-dummy-x-ats" \
+    WHATSAPP_ENABLE=1 \
+    WHATSAPP_SELF_JID_INPUT="358445150070@s.whatsapp.net" \
     bash "$SCRIPT_DIR/install-team.sh" \
         --skip-claude-auth --comms-port "$COMMS_PORT"
 
@@ -233,11 +235,22 @@ verify() {
     if [[ "$file_perms" == "600" ]]; then ok "$COMMS_USER x.env is 600"; else not_ok "$COMMS_USER x.env is 600 (got: $file_perms)"; fi
     check "$COMMS_USER x.env has X_BEARER_TOKEN" "grep -q X_BEARER_TOKEN /home/fagents/.agents/$COMMS_USER/x.env"
 
+    # -- WhatsApp credentials (comms agent only) --
+    check "$COMMS_USER whatsapp.env exists" "test -f /home/fagents/.agents/$COMMS_USER/whatsapp.env"
+    file_perms=$(stat -c %a /home/fagents/.agents/$COMMS_USER/whatsapp.env 2>/dev/null)
+    if [[ "$file_perms" == "600" ]]; then ok "$COMMS_USER whatsapp.env is 600"; else not_ok "$COMMS_USER whatsapp.env is 600 (got: $file_perms)"; fi
+    check "$COMMS_USER whatsapp.env has WHATSAPP_ALLOWED_JIDS" "grep -q WHATSAPP_ALLOWED_JIDS /home/fagents/.agents/$COMMS_USER/whatsapp.env"
+    check "$COMMS_USER whatsapp.env has WHATSAPP_SELF_JID" "grep -q WHATSAPP_SELF_JID /home/fagents/.agents/$COMMS_USER/whatsapp.env"
+    check "$COMMS_USER whatsapp-spool dir exists" "test -d /home/fagents/.agents/$COMMS_USER/whatsapp-spool"
+    check "$COMMS_USER whatsapp-outbox dir exists" "test -d /home/fagents/.agents/$COMMS_USER/whatsapp-outbox"
+    check "$COMMS_USER whatsapp-session dir exists" "test -d /home/fagents/.agents/$COMMS_USER/whatsapp-session"
+
     # -- Sudoers: comms agent gets scoped rules --
     check "${COMMS_USER}-telegram sudoers exists" "test -f /etc/sudoers.d/${COMMS_USER}-telegram"
     check "${COMMS_USER}-telegram sudoers has telegram.sh" "grep -q telegram.sh /etc/sudoers.d/${COMMS_USER}-telegram"
     check "${COMMS_USER}-telegram sudoers has tts-speak.sh" "grep -q tts-speak.sh /etc/sudoers.d/${COMMS_USER}-telegram"
     check "${COMMS_USER}-telegram sudoers has x.sh" "grep -q x.sh /etc/sudoers.d/${COMMS_USER}-telegram"
+    check "${COMMS_USER}-telegram sudoers has whatsapp.mjs" "grep -q whatsapp.mjs /etc/sudoers.d/${COMMS_USER}-telegram"
 
     # Ops agent has NO telegram/x creds
     check "ops agent has no telegram creds" "test ! -d /home/fagents/.agents/$OPS_USER"

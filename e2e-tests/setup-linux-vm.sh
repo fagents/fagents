@@ -126,7 +126,7 @@ cmd_provision() {
     echo ""
     echo "  Copying fagents repo..."
     vm_ssh "mkdir -p ~/fagents/fagents ~/fagents/e2e-tests"
-    vm_rsync "$REPO_ROOT/fagents/" "$VM_USER@$VM_IP:~/fagents/fagents/"
+    vm_rsync "$REPO_ROOT/" "$VM_USER@$VM_IP:~/fagents/fagents/"
     vm_rsync "$REPO_ROOT/e2e-tests/" "$VM_USER@$VM_IP:~/fagents/e2e-tests/"
     echo "  Done"
 
@@ -147,7 +147,7 @@ cmd_test() {
     # Re-sync repo before test (picks up changes)
     echo "Syncing repo..."
     vm_ssh "mkdir -p ~/fagents/fagents ~/fagents/e2e-tests"
-    vm_rsync "$REPO_ROOT/fagents/" "$VM_USER@$VM_IP:~/fagents/fagents/"
+    vm_rsync "$REPO_ROOT/" "$VM_USER@$VM_IP:~/fagents/fagents/"
     vm_rsync "$REPO_ROOT/e2e-tests/" "$VM_USER@$VM_IP:~/fagents/e2e-tests/"
 
     echo ""

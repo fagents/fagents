@@ -132,7 +132,7 @@ cmd_provision() {
     # Copy fagents repo (rsync excludes .git, has deterministic trailing-slash semantics)
     echo ""
     echo "  Copying fagents repo..."
-    vm_rsync "$REPO_ROOT/fagents/" "$VM_USER@$VM_IP:~/fagents/fagents/"
+    vm_rsync "$REPO_ROOT/" "$VM_USER@$VM_IP:~/fagents/fagents/"
     vm_rsync "$REPO_ROOT/e2e-tests/" "$VM_USER@$VM_IP:~/fagents/e2e-tests/"
     echo "  Done"
 
@@ -152,7 +152,7 @@ cmd_test() {
 
     # Re-sync repo before test (picks up changes)
     echo "Syncing repo..."
-    vm_rsync "$REPO_ROOT/fagents/" "$VM_USER@$VM_IP:~/fagents/fagents/"
+    vm_rsync "$REPO_ROOT/" "$VM_USER@$VM_IP:~/fagents/fagents/"
     vm_rsync "$REPO_ROOT/e2e-tests/" "$VM_USER@$VM_IP:~/fagents/e2e-tests/"
 
     echo ""

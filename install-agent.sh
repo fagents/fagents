@@ -393,7 +393,7 @@ else
     SED_INPLACE=(sed -i '')
 fi
 
-for skill in fagents-comms fagents-chat fagents-watch telegram x cron fagents-deploylog; do
+for skill in fagents-comms fagents-chat fagents-watch telegram x whatsapp cron fagents-deploylog; do
     if [[ -f "$CLI_DIR/$skill/SKILL.md" ]]; then
         mkdir -p "$CLAUDE_SKILLS_DIR/$skill"
         cp "$CLI_DIR/$skill/SKILL.md" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"

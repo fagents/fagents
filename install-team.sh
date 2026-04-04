@@ -349,6 +349,38 @@ if [[ "${enable_x,,}" =~ ^y ]]; then
     fi
 fi
 
+# ── WhatsApp config (scoped to comms agent) ──
+WHATSAPP_CONFIGURED=""
+enable_whatsapp=""
+if [[ -z "${NONINTERACTIVE:-}" ]]; then
+    echo ""
+    read -rp "Enable WhatsApp for $COMMS_AGENT_NAME? [y/N]: " enable_whatsapp
+elif [[ -n "${WHATSAPP_ENABLE:-}" ]]; then
+    enable_whatsapp="y"
+fi
+if [[ "${enable_whatsapp,,}" =~ ^y ]]; then
+    # Check Node.js available
+    if ! command -v node &>/dev/null; then
+        log_warn "Node.js not found — skipping WhatsApp (install Node.js and re-run)"
+    else
+        if [[ -n "${NONINTERACTIVE:-}" ]]; then
+            # Non-interactive: session must be pre-provisioned
+            WHATSAPP_SELF_JID="${WHATSAPP_SELF_JID_INPUT:-}"
+            WHATSAPP_CONFIGURED=1
+        else
+            echo ""
+            echo "  WhatsApp uses a self-chat model: link your WhatsApp account,"
+            echo "  then send messages to yourself via 'Note to self'."
+            echo ""
+            echo "  Step 1: Link your WhatsApp account (scan QR code)"
+            echo "  The QR code will appear after install completes."
+            echo ""
+            read -rp "    Self-chat JID (your number@s.whatsapp.net, or blank to set later): " WHATSAPP_SELF_JID
+            WHATSAPP_CONFIGURED=1
+        fi
+    fi
+fi
+
 echo ""
 echo "  Infra user:  $INFRA_USER (owns comms + git repos)"
 echo "  Ops agent:   $OPS_AGENT_NAME ($OPS_USER) — infra, sudo"
@@ -358,6 +390,7 @@ echo "  Comms:       127.0.0.1:$COMMS_PORT"
 [[ -n "$CLAUDE_TOKEN" ]] && echo "  Claude auth: provided" || echo "  Claude auth: skip (set up manually later)"
 [[ -n "${TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]:-}" ]] && echo "  Telegram:    enabled ($COMMS_AGENT_NAME)" || echo "  Telegram:    disabled"
 [[ -n "$X_BEARER_TOKEN" ]] && echo "  X (Twitter): enabled ($COMMS_AGENT_NAME)" || echo "  X (Twitter): disabled"
+[[ -n "$WHATSAPP_CONFIGURED" ]] && echo "  WhatsApp:    enabled ($COMMS_AGENT_NAME)" || echo "  WhatsApp:    disabled"
 [[ -n "$EMAIL_ENABLED" ]] && echo "  Email:       enabled ($COMMS_AGENT_NAME)" || echo "  Email:       disabled"
 
 echo ""
@@ -937,6 +970,56 @@ XEOF
         fi
     fi
     log_ok "$COMMS_AGENT_NAME: X configured"
+fi
+
+# ── Step 5e: WhatsApp setup (comms agent) ──
+if [[ -n "$WHATSAPP_CONFIGURED" ]]; then
+    log_step "Step 5e: WhatsApp setup"
+
+    mkdir -p "$INFRA_HOME/.agents"
+    agent_dir="$INFRA_HOME/.agents/$COMMS_USER"
+    mkdir -p "$agent_dir"
+
+    cat > "$agent_dir/whatsapp.env" <<WAEOF
+WHATSAPP_ALLOWED_JIDS=${WHATSAPP_SELF_JID:-}
+WHATSAPP_SELF_JID=${WHATSAPP_SELF_JID:-}
+WAEOF
+
+    # Create spool + outbox + session dirs
+    mkdir -p "$agent_dir/whatsapp-spool" "$agent_dir/whatsapp-outbox" "$agent_dir/whatsapp-session"
+
+    chown -R "$INFRA_USER:fagent" "$agent_dir"
+    chmod 700 "$agent_dir"
+    chmod 600 "$agent_dir/whatsapp.env"
+
+    # npm install in fagents-cli (if not already done)
+    if [[ -n "$CLI_DIR" ]] && [[ -f "$CLI_DIR/package.json" ]]; then
+        if [[ ! -d "$CLI_DIR/node_modules" ]]; then
+            log_step "  Installing Node.js dependencies for WhatsApp..."
+            (cd "$CLI_DIR" && npm install --production 2>&1) || log_warn "npm install failed — WhatsApp may not work"
+        fi
+    fi
+
+    # Sudoers — append whatsapp.mjs to existing rule, or create new
+    if [[ -n "$CLI_DIR" ]] && [[ -d "$CLI_DIR" ]]; then
+        if [[ -f "/etc/sudoers.d/${COMMS_USER}-telegram" ]]; then
+            existing=$(cat "/etc/sudoers.d/${COMMS_USER}-telegram")
+            echo "${existing}, $CLI_DIR/whatsapp.mjs" > "/etc/sudoers.d/${COMMS_USER}-telegram"
+            chmod 440 "/etc/sudoers.d/${COMMS_USER}-telegram"
+        else
+            echo "$COMMS_USER ALL=($INFRA_USER) NOPASSWD: $CLI_DIR/whatsapp.mjs" > "/etc/sudoers.d/${COMMS_USER}-whatsapp"
+            chmod 440 "/etc/sudoers.d/${COMMS_USER}-whatsapp"
+        fi
+    fi
+
+    if [[ -z "${NONINTERACTIVE:-}" ]]; then
+        echo ""
+        echo "  To complete WhatsApp setup, run as $COMMS_USER:"
+        echo "    sudo -u $INFRA_USER $CLI_DIR/whatsapp.mjs login"
+        echo "  Then scan the QR code with your phone."
+    fi
+
+    log_ok "$COMMS_AGENT_NAME: WhatsApp configured"
 fi
 
 # ── Step 6: Claude Code setup ──

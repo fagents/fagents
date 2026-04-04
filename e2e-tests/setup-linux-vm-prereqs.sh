@@ -28,6 +28,7 @@ command -v git     &>/dev/null || NEEDED+=(git)
 command -v python3 &>/dev/null || NEEDED+=(python3)
 command -v curl    &>/dev/null || NEEDED+=(curl)
 command -v jq      &>/dev/null || NEEDED+=(jq)
+command -v node    &>/dev/null || NEEDED+=(nodejs npm)
 
 if [[ ${#NEEDED[@]} -gt 0 ]]; then
     echo "Installing: ${NEEDED[*]}"
@@ -39,7 +40,7 @@ fi
 echo ""
 echo "Checking prerequisites..."
 OK=true
-for cmd in git python3 curl jq bash; do
+for cmd in git python3 curl jq bash node npm; do
     if command -v "$cmd" &>/dev/null; then
         echo "  $cmd: $(command -v $cmd)"
     else
