@@ -224,9 +224,6 @@ if [[ ! -f .claude/settings.json ]]; then
   "hooks": {
     "PreToolUse": [
       {"hooks": [{"type": "command", "command": "\"$AUTONOMY_DIR\"/hooks/inject-awareness.sh"}]}
-    ],
-    "PostToolUse": [
-      {"hooks": [{"type": "command", "command": "\"$AUTONOMY_DIR\"/hooks/activity-push.sh", "async": true, "timeout": 10}]}
     ]
   }
 }
