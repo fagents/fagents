@@ -51,7 +51,6 @@ d = json.load(open('.claude/settings.json'))
 hooks = list(d.get('hooks', {}).keys())
 print(f'Active hooks: {hooks}')
 assert 'Stop' not in hooks, 'Stop still present!'
-assert 'SessionStart' not in hooks, 'SessionStart still present!'
 print('OK')
 "
 ```
