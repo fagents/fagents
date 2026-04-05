@@ -8,8 +8,6 @@
 
 The `SessionStart` hook (`startup-notice.sh`) has been removed. It was a meta-hook that listed active hooks and awareness scripts — purely informational, no effect on agent behavior. The daemon already logs its config at startup.
 
-The script is replaced with a no-op stub (`exit 0`) so installs that pull autonomy before cleaning settings.json won't hit a missing file error.
-
 This is the first step in eliminating Claude-specific hooks for multi-backend support.
 
 ## Steps
@@ -45,7 +43,7 @@ else:
 
 ### 3. Restart daemon
 
-No restart strictly needed (the hook is now a no-op stub even if still in settings). But to pick up the clean state:
+No restart strictly needed (settings change takes effect on next session). But to pick up the clean state:
 
 ```bash
 # Kill daemon PID — systemd/launchd auto-restarts it
