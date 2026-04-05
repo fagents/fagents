@@ -41,14 +41,13 @@ else:
 "
 ```
 
-### 3. Restart daemon
+### 3. Restart daemon (optional)
 
-No restart strictly needed (settings change takes effect on next session). But to pick up the clean state:
+No restart strictly needed — Claude Code picks up settings.json changes on next session. But to pick up the clean state immediately, restart the agent daemon using whatever method your install uses. For example:
 
-```bash
-# Kill daemon PID — systemd/launchd auto-restarts it
-sudo -u "$AGENT_USER" bash -c "kill \$(cat ~/workspace/\$USER/.autonomy/daemon.pid)"
-```
+- **imagine-emerge:** `sudo /home/fagents/team/restart-agent.sh <agent>`
+- **systemd installs:** `sudo systemctl restart fagents`
+- **launchd (macOS):** agent auto-restarts on next wake
 
 ## Doctor
 
