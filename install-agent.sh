@@ -222,9 +222,6 @@ if [[ ! -f .claude/settings.json ]]; then
     ]
   },
   "hooks": {
-    "SessionStart": [
-      {"hooks": [{"type": "command", "command": "\"$AUTONOMY_DIR\"/hooks/startup-notice.sh"}]}
-    ],
     "UserPromptSubmit": [
       {"hooks": [{"type": "command", "command": "\"$AUTONOMY_DIR\"/hooks/inject-context.sh"}]}
     ],
