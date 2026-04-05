@@ -45,8 +45,8 @@ else:
 
 Required — daemon.sh has new code in `read_prompt()`. Use your install's restart method:
 
-- **imagine-emerge:** `sudo /home/fagents/team/restart-agent.sh <agent>`
-- **systemd installs:** `sudo systemctl restart fagents`
+- **imagine-emerge:** `sudo systemctl restart fagents`
+- **other systemd installs:** `sudo systemctl restart fagents`
 - **launchd (macOS):** agent auto-restarts on next wake
 
 ## Doctor
