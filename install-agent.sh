@@ -222,9 +222,6 @@ if [[ ! -f .claude/settings.json ]]; then
     ]
   },
   "hooks": {
-    "UserPromptSubmit": [
-      {"hooks": [{"type": "command", "command": "\"$AUTONOMY_DIR\"/hooks/inject-context.sh"}]}
-    ],
     "PreToolUse": [
       {"hooks": [{"type": "command", "command": "\"$AUTONOMY_DIR\"/hooks/inject-awareness.sh"}]}
     ],
