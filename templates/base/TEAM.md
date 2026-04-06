@@ -131,28 +131,25 @@ defines the protocol; comms holds the state.
 
 ## Interrupt Protocol
 
-The human lead's problem: no way to pause an agent mid-action. An agent in a
-long tool call (hashcat, nmap, large git operation) is deaf until the
-call finishes.
+The daemon controls agent sessions. Between sessions (1-5 min cycles),
+the daemon checks for pause signals before starting the next turn.
+
+**How to pause an agent:**
+- `touch $PROJECT_DIR/.autonomy/daemon.pause` — daemon blocks between
+  sessions. Requires SSH access to the host.
+- `rm $PROJECT_DIR/.autonomy/daemon.pause` — resume.
+- Kill the daemon PID (`kill $(cat $PROJECT_DIR/.autonomy/daemon.pid)`)
+  — immediate stop.
+- Send a normal message on comms — the agent reads it next session.
 
 **Rules for agents:**
 - Keep individual tool calls short. No single command should run longer
   than 10 minutes unattended.
 - For long-running tasks, use background processes and check comms
   between each step.
-- After every tool call that takes more than 30 seconds, check comms
-  before the next one.
 
-**Rules for the human lead:**
-- Post PAUSE on the relevant channel. The agent will see it at the
-  next comms check.
-- Accept that turns are atomic — an agent can't stop mid-sentence.
-  The minimum interrupt latency is one tool call.
-
-**What PAUSE means:**
-- Stop what you're doing after the current tool call completes.
-- Post your current state to comms.
-- Wait for further instructions. Don't resume until the human lead says GO.
+**Latency:** Minimum interrupt latency is one session (1-5 min).
+Agents cannot be stopped mid-session.
 
 ## Communication
 

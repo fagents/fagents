@@ -220,11 +220,6 @@ if [[ ! -f .claude/settings.json ]]; then
       "Bash(cat $WORKSPACE_DIR/.env)", "Bash(cat $WORKSPACE_DIR/.env.*)",
       "Bash(cat $WORKSPACE_DIR/.mcp.json)", "Bash(cat $WORKSPACE_DIR/start-agent.sh)"
     ]
-  },
-  "hooks": {
-    "PreToolUse": [
-      {"hooks": [{"type": "command", "command": "\"$AUTONOMY_DIR\"/hooks/inject-awareness.sh"}]}
-    ]
   }
 }
 SETTINGSEOF
