@@ -32,12 +32,13 @@ cd /
 COMMS_PORT=9754
 COMMS_REPO="https://github.com/fagents/fagents-comms.git"
 SKIP_CLAUDE_AUTH=""
+SKIP_CODEX_AUTH=""
 VERBOSE=""
 HUMAN_NAMES=()
 INFRA_USER="fagents"
 INFRA_HOME="/Users/$INFRA_USER"
 
-OPENAI_API_KEY=""
+OPENAI_API_KEY="${OPENAI_API_KEY:-}"
 X_BEARER_TOKEN=""
 X_CONSUMER_KEY=""
 X_CONSUMER_SECRET=""
@@ -58,6 +59,7 @@ while [[ $# -gt 0 ]]; do
         --comms-port)   COMMS_PORT="$2"; shift 2 ;;
         --comms-repo)   COMMS_REPO="$2"; shift 2 ;;
         --skip-claude-auth)    SKIP_CLAUDE_AUTH=1; shift ;;
+        --skip-codex-auth)     SKIP_CODEX_AUTH=1; shift ;;
         --verbose|-v)   VERBOSE=1; shift ;;
         --help|-h)
             sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
@@ -216,6 +218,31 @@ COMMS_USER="$(echo "$COMMS_AGENT_NAME" | tr '[:upper:]' '[:lower:]')"
 AGENT_NAMES=("$OPS_AGENT_NAME" "$COMMS_AGENT_NAME")
 AGENT_USERS=("$OPS_USER" "$COMMS_USER")
 
+# Per-agent backend selection + filtering in one pass
+declare -A AGENT_BACKENDS
+CLAUDE_AGENTS=()
+CODEX_AGENTS=()
+for user in "${AGENT_USERS[@]}"; do
+    backend_key=$(printf '%s' "$user" | tr '[:lower:]-' '[:upper:]_')
+    backend_var="AGENT_BACKEND_${backend_key}"
+    if [[ -n "${!backend_var:-}" ]]; then
+        AGENT_BACKENDS["$user"]="${!backend_var}"
+    elif [[ -z "${NONINTERACTIVE:-}" ]]; then
+        read -rp "Backend for $user [claude/codex] (claude): " _backend
+        AGENT_BACKENDS["$user"]="${_backend:-claude}"
+    else
+        AGENT_BACKENDS["$user"]="claude"
+    fi
+    case "${AGENT_BACKENDS[$user]}" in
+        claude) CLAUDE_AGENTS+=("$user") ;;
+        codex)  CODEX_AGENTS+=("$user") ;;
+        *)
+            log_err "Invalid backend '${AGENT_BACKENDS[$user]}' for $user (must be claude or codex)"
+            exit 1
+            ;;
+    esac
+done
+
 echo ""
 prompt COMMS_PORT "Comms server port" "$COMMS_PORT"
 
@@ -237,11 +264,11 @@ if [[ ${#HUMAN_NAMES[@]} -eq 0 ]]; then
     exit 1
 fi
 
-# Ask for Claude OAuth token upfront
+# Ask for Claude OAuth token upfront (only if Claude agents exist)
 CLAUDE_TOKEN="${CLAUDE_TOKEN:-}"
-if [[ -z "$SKIP_CLAUDE_AUTH" && -z "${NONINTERACTIVE:-}" ]]; then
+if [[ ${#CLAUDE_AGENTS[@]} -gt 0 && -z "$SKIP_CLAUDE_AUTH" && -z "${NONINTERACTIVE:-}" ]]; then
     echo ""
-    echo "All agents need a Claude Code OAuth token to run."
+    echo "Claude agents need a Claude Code OAuth token to run."
     echo "If Claude Code is not installed yet, run this first:"
     echo "  curl -fsSL https://claude.ai/install.sh | bash && export PATH=\"\$HOME/.local/bin:\$PATH\" && claude setup-token"
     echo "Then paste the token here."
@@ -342,7 +369,7 @@ if [[ "${enable_telegram,,}" =~ ^y ]]; then
         read -rsp "    OpenAI API key (blank to skip): " _openai_key; echo ""
         [[ -n "$_openai_key" ]] && OPENAI_API_KEY="$_openai_key"
     else
-        OPENAI_API_KEY="${OPENAI_API_KEY_INPUT:-}"
+        [[ -n "${OPENAI_API_KEY_INPUT:-}" ]] && OPENAI_API_KEY="$OPENAI_API_KEY_INPUT"
     fi
 fi
 
@@ -781,6 +808,7 @@ for i in "${!AGENT_NAMES[@]}"; do
     echo ""
     echo "  $name ($user):"
 
+    _agent_backend="${AGENT_BACKENDS[$user]:-claude}"
     _out=$(sudo -Hu"$user" bash -lc "
         export NONINTERACTIVE=1
         export AGENT_NAME='$name'
@@ -792,6 +820,7 @@ for i in "${!AGENT_NAMES[@]}"; do
         export AUTONOMY_DIR='$SHARED_AUTONOMY_WORKING'
         export AUTONOMY_SHARED=1
         export REPOS_DIR='$REPOS_DIR'
+        export DAEMON_BACKEND='$_agent_backend'
         bash '$INSTALL_SCRIPT'
     " 2>&1) || true
     [[ -n "${VERBOSE:-}" ]] && echo "$_out" | sed 's/^/  /'
@@ -1032,47 +1061,147 @@ WAEOF
     log_ok "$COMMS_AGENT_NAME: WhatsApp configured"
 fi
 
-# ── Step 6: Claude Code setup ──
-if [[ -z "$SKIP_CLAUDE_AUTH" ]]; then
-    log_step "Step 6: Claude Code setup"
+# ── Step 6: Backend CLI setup ──
+log_step "Step 6: Backend CLI setup"
 
-    for i in "${!AGENT_NAMES[@]}"; do
-        name="${AGENT_NAMES[$i]}"
-        user="${AGENT_USERS[$i]}"
+# Claude agents
+if [[ ${#CLAUDE_AGENTS[@]} -gt 0 && -z "$SKIP_CLAUDE_AUTH" ]]; then
+    echo "  Claude agents: ${CLAUDE_AGENTS[*]}"
+    for user in "${CLAUDE_AGENTS[@]}"; do
         if sudo -Hu"$user" bash -lc "command -v claude" &>/dev/null; then
-            log_ok "$name: Claude Code already installed"
+            log_ok "$user: Claude Code already installed"
         else
-            echo "  $name: Installing Claude Code..."
+            echo "  $user: Installing Claude Code..."
             run sudo -Hu"$user" bash -lc "curl -fsSL https://claude.ai/install.sh | bash"
             if sudo -Hu"$user" bash -lc "command -v claude" &>/dev/null; then
-                log_ok "$name: Claude Code installed"
+                log_ok "$user: Claude Code installed"
             else
-                log_warn " Claude Code installation failed for $name"
+                log_warn "Claude Code installation failed for $user"
             fi
         fi
     done
 
     if [[ -n "$CLAUDE_TOKEN" ]]; then
-        for i in "${!AGENT_NAMES[@]}"; do
-            name="${AGENT_NAMES[$i]}"
-            user="${AGENT_USERS[$i]}"
+        for user in "${CLAUDE_AGENTS[@]}"; do
             agent_home="/Users/$user"
             agent_ws="$agent_home/workspace/$user"
-
-            echo "export CLAUDE_CODE_OAUTH_TOKEN=\"$CLAUDE_TOKEN\"" > "$agent_ws/.env"
+            if ! grep -q "CLAUDE_CODE_OAUTH_TOKEN" "$agent_ws/.env" 2>/dev/null; then
+                echo "export CLAUDE_CODE_OAUTH_TOKEN=\"$CLAUDE_TOKEN\"" >> "$agent_ws/.env"
+            fi
             chown "$user:fagent" "$agent_ws/.env"
             chmod 600 "$agent_ws/.env"
-
             sudo -Hu"$user" bash -lc "mkdir -p ~/.claude && echo '{\"hasCompletedOnboarding\": true}' > ~/.claude.json"
-
-            log_ok "Configured $name"
+            log_ok "$user: Claude auth configured"
         done
-        log_ok "OAuth configured for all agents"
     else
-        echo "  Skipped — set up auth manually later."
+        echo "  Claude auth skipped — set up manually later."
     fi
-else
-    log_step "Step 6: Claude Code setup (skipped)"
+fi
+
+# Codex agents
+if [[ ${#CODEX_AGENTS[@]} -gt 0 ]]; then
+    # Derive auth mode: explicit > skip flag > noninteractive heuristic > interactive default
+    if [[ -n "$SKIP_CODEX_AUTH" ]]; then
+        CODEX_AUTH_MODE="skip"
+    elif [[ -z "${CODEX_AUTH_MODE:-}" ]]; then
+        if [[ -n "${NONINTERACTIVE:-}" ]]; then
+            if [[ -n "${OPENAI_API_KEY:-}" ]]; then
+                CODEX_AUTH_MODE="api-key-login"
+            else
+                log_err "NONINTERACTIVE Codex install requires OPENAI_API_KEY or CODEX_AUTH_MODE=skip"
+                exit 1
+            fi
+        else
+            CODEX_AUTH_MODE="oauth"
+        fi
+    fi
+    echo "  Codex agents: ${CODEX_AGENTS[*]}"
+
+    # Prerequisite: Node.js + npm (macOS: require Homebrew)
+    if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
+        log_err "Node.js required for Codex CLI — install: brew install node"
+        exit 1
+    fi
+
+    # Install Codex CLI globally
+    if ! command -v codex &>/dev/null; then
+        echo "  Installing Codex CLI..."
+        run npm install -g @openai/codex
+        if ! command -v codex &>/dev/null; then
+            log_err "Codex CLI install failed — run: npm install -g @openai/codex"
+            exit 1
+        fi
+    fi
+    log_ok "Codex CLI installed"
+
+    # Verify first Codex agent can reach codex (global install, same PATH for all)
+    _first_codex="${CODEX_AGENTS[0]}"
+    if sudo -Hu"$_first_codex" bash -lc "command -v codex && codex --version" &>/dev/null; then
+        log_ok "Codex CLI reachable (verified as $_first_codex)"
+    else
+        log_err "codex not in PATH for $_first_codex — check npm global prefix"
+        exit 1
+    fi
+
+    # Auth
+    CODEX_AUTH_MODE="${CODEX_AUTH_MODE:-oauth}"
+    for user in "${CODEX_AGENTS[@]}"; do
+        agent_home="/Users/$user"
+        agent_ws="$agent_home/workspace/$user"
+        codex_home="$agent_home/.codex"
+
+        case "$CODEX_AUTH_MODE" in
+            oauth)
+                echo "  $user: Codex login (device auth)..."
+                sudo -Hu"$user" bash -lc "CODEX_HOME='$codex_home' codex login --device-auth" || {
+                    log_warn "$user: codex login failed — set up manually later"
+                    continue
+                }
+                _status=$(sudo -Hu"$user" bash -lc "CODEX_HOME='$codex_home' codex login status" 2>&1) || true
+                if echo "$_status" | grep -q "^Logged in"; then
+                    log_ok "$user: Codex auth configured (OAuth)"
+                else
+                    log_warn "$user: codex login status unclear — verify manually"
+                fi
+                ;;
+            api-key-login)
+                if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+                    log_err "OPENAI_API_KEY required for api-key-login mode"
+                    exit 1
+                fi
+                echo "$OPENAI_API_KEY" | sudo -Hu"$user" bash -lc "CODEX_HOME='$codex_home' codex login --with-api-key"
+                _status=$(sudo -Hu"$user" bash -lc "CODEX_HOME='$codex_home' codex login status" 2>&1) || true
+                if echo "$_status" | grep -q "^Logged in"; then
+                    log_ok "$user: Codex auth configured (API key login)"
+                else
+                    log_warn "$user: codex login status unclear — verify manually"
+                fi
+                ;;
+            api-key-env)
+                if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+                    log_err "OPENAI_API_KEY required for api-key-env mode"
+                    exit 1
+                fi
+                if ! grep -q "OPENAI_API_KEY" "$agent_ws/.env" 2>/dev/null; then
+                    echo "export OPENAI_API_KEY=\"$OPENAI_API_KEY\"" >> "$agent_ws/.env"
+                fi
+                chown "$user:fagent" "$agent_ws/.env"
+                chmod 600 "$agent_ws/.env"
+                log_ok "$user: Codex auth configured (env key)"
+                ;;
+            skip)
+                echo "  $user: Codex auth skipped"
+                ;;
+            *)
+                log_err "Invalid CODEX_AUTH_MODE='$CODEX_AUTH_MODE' (must be oauth|api-key-login|api-key-env|skip)"
+                exit 1
+                ;;
+        esac
+    done
+fi
+
+if [[ ${#CLAUDE_AGENTS[@]} -eq 0 && ${#CODEX_AGENTS[@]} -eq 0 ]]; then
+    echo "  No agents to configure (all auth skipped)."
 fi
 echo ""
 

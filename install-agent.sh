@@ -71,6 +71,7 @@ fi
 
 WORKSPACE_DIR="$HOME/workspace/$WORKSPACE"
 AUTONOMY_DIR="${AUTONOMY_DIR:-$HOME/workspace/fagents-autonomy}"
+DAEMON_BACKEND="${DAEMON_BACKEND:-claude}"
 CLAUDE_PROJECT_DIR="$HOME/.claude/projects/-home-$(whoami)-workspace-${WORKSPACE}"
 
 # ── Step 1: Clone fagents-autonomy if not present ──
@@ -184,16 +185,18 @@ else
     echo "  SOUL.md already exists — skipping."
 fi
 
-# Symlink Claude project memory dir to workspace memory dir
-mkdir -p "$CLAUDE_PROJECT_DIR"
-if [[ -d "$CLAUDE_PROJECT_DIR/memory" && ! -L "$CLAUDE_PROJECT_DIR/memory" ]]; then
-    echo "  Migrating existing .claude/memory/ contents to workspace memory/..."
-    cp -n "$CLAUDE_PROJECT_DIR/memory/"* "$WORKSPACE_DIR/memory/" 2>/dev/null || true
-    rm -rf "$CLAUDE_PROJECT_DIR/memory"
-fi
-if [[ ! -e "$CLAUDE_PROJECT_DIR/memory" ]]; then
-    ln -s "$WORKSPACE_DIR/memory" "$CLAUDE_PROJECT_DIR/memory"
-    echo "  Symlinked .claude/memory/ → workspace/memory/"
+# Symlink Claude project memory dir to workspace memory dir (Claude only)
+if [[ "$DAEMON_BACKEND" == "claude" ]]; then
+    mkdir -p "$CLAUDE_PROJECT_DIR"
+    if [[ -d "$CLAUDE_PROJECT_DIR/memory" && ! -L "$CLAUDE_PROJECT_DIR/memory" ]]; then
+        echo "  Migrating existing .claude/memory/ contents to workspace memory/..."
+        cp -n "$CLAUDE_PROJECT_DIR/memory/"* "$WORKSPACE_DIR/memory/" 2>/dev/null || true
+        rm -rf "$CLAUDE_PROJECT_DIR/memory"
+    fi
+    if [[ ! -e "$CLAUDE_PROJECT_DIR/memory" ]]; then
+        ln -s "$WORKSPACE_DIR/memory" "$CLAUDE_PROJECT_DIR/memory"
+        echo "  Symlinked .claude/memory/ → workspace/memory/"
+    fi
 fi
 echo "  Done."
 
@@ -202,10 +205,11 @@ echo ""
 echo "=== Step 4: Workspace scaffolding ==="
 cd "$WORKSPACE_DIR"
 
-# .claude/settings.json
-mkdir -p .claude
-if [[ ! -f .claude/settings.json ]]; then
-    cat > .claude/settings.json << SETTINGSEOF
+# Backend-specific settings
+if [[ "$DAEMON_BACKEND" == "claude" ]]; then
+    mkdir -p .claude
+    if [[ ! -f .claude/settings.json ]]; then
+        cat > .claude/settings.json << SETTINGSEOF
 {
   "enableAllProjectMcpServers": true,
   "permissions": {
@@ -223,7 +227,23 @@ if [[ ! -f .claude/settings.json ]]; then
   }
 }
 SETTINGSEOF
-    echo "  Created .claude/settings.json"
+        echo "  Created .claude/settings.json"
+    fi
+elif [[ "$DAEMON_BACKEND" == "codex" ]]; then
+    # Minimal AGENTS.md for Codex workspace guidance (non-destructive)
+    if [[ ! -f AGENTS.md ]]; then
+        cat > AGENTS.md << AGENTSEOF
+# Agent: $AGENT_NAME
+
+Backend: Codex CLI
+Workspace: $WORKSPACE_DIR
+Autonomy: $AUTONOMY_DIR
+
+See TEAM.md for coordination protocol.
+See prompts/ for daemon prompt templates.
+AGENTSEOF
+        echo "  Created AGENTS.md"
+    fi
 fi
 
 # TEAM.md copy (tracked in agent's personal repo, not symlinked)
@@ -233,7 +253,7 @@ if [[ ! -e TEAM.md ]] && [[ -f "$AUTONOMY_DIR/TEAM.md" ]]; then
 fi
 
 # .introspection-logs symlink (Claude Code session data for awareness scripts)
-if [[ ! -e .introspection-logs ]]; then
+if [[ "$DAEMON_BACKEND" == "claude" ]] && [[ ! -e .introspection-logs ]]; then
     ln -s "$CLAUDE_PROJECT_DIR" .introspection-logs
     echo "  Created .introspection-logs symlink"
 fi
@@ -339,18 +359,25 @@ else
     echo "  Done."
 fi
 
-# ── Step 7: Claude Code ──
-if command -v claude &>/dev/null; then
-    echo "=== Step 7: Claude Code ==="
-    echo "  Already installed"
-else
-    echo "=== Step 7: Claude Code ==="
-    echo "  Installing..."
-    curl -fsSL https://claude.ai/install.sh | bash > /dev/null 2>&1 || true
+# ── Step 7: Backend CLI ──
+echo "=== Step 7: Backend CLI ($DAEMON_BACKEND) ==="
+if [[ "$DAEMON_BACKEND" == "claude" ]]; then
     if command -v claude &>/dev/null; then
-        echo "  Installed"
+        echo "  Claude Code already installed"
     else
-        echo "  WARNING: Claude Code install failed — install manually"
+        echo "  Installing Claude Code..."
+        curl -fsSL https://claude.ai/install.sh | bash > /dev/null 2>&1 || true
+        if command -v claude &>/dev/null; then
+            echo "  Installed"
+        else
+            echo "  WARNING: Claude Code install failed — install manually"
+        fi
+    fi
+elif [[ "$DAEMON_BACKEND" == "codex" ]]; then
+    if command -v codex &>/dev/null; then
+        echo "  Codex CLI already installed"
+    else
+        echo "  Codex CLI not found — install globally: npm install -g @openai/codex"
     fi
 fi
 echo ""
@@ -369,28 +396,32 @@ fi
 # Derive INFRA_HOME from CLI_DIR if not set (CLI_DIR is always $INFRA_HOME/workspace/fagents-cli)
 INFRA_HOME="${INFRA_HOME:-$(dirname "$(dirname "$CLI_DIR")")}"
 
-CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
-mkdir -p "$CLAUDE_SKILLS_DIR"
+if [[ "$DAEMON_BACKEND" == "claude" ]]; then
+    CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
+    mkdir -p "$CLAUDE_SKILLS_DIR"
 
-# BSD sed (macOS) needs -i '', GNU sed (Linux) needs just -i
-if sed --version 2>/dev/null | grep -q GNU; then
-    SED_INPLACE=(sed -i)
-else
-    SED_INPLACE=(sed -i '')
-fi
-
-for skill in fagents-comms fagents-chat fagents-watch telegram x whatsapp cron fagents-deploylog; do
-    if [[ -f "$CLI_DIR/$skill/SKILL.md" ]]; then
-        mkdir -p "$CLAUDE_SKILLS_DIR/$skill"
-        cp "$CLI_DIR/$skill/SKILL.md" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
-        "${SED_INPLACE[@]}" \
-            -e "s|__CLI_DIR__|$CLI_DIR|g" \
-            -e "s|__AUTONOMY_DIR__|$AUTONOMY_DIR|g" \
-            -e "s|__INFRA_HOME__|$INFRA_HOME|g" \
-            "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
-        echo "  Installed skill: $skill"
+    # BSD sed (macOS) needs -i '', GNU sed (Linux) needs just -i
+    if sed --version 2>/dev/null | grep -q GNU; then
+        SED_INPLACE=(sed -i)
+    else
+        SED_INPLACE=(sed -i '')
     fi
-done
+
+    for skill in fagents-comms fagents-chat fagents-watch telegram x whatsapp cron fagents-deploylog; do
+        if [[ -f "$CLI_DIR/$skill/SKILL.md" ]]; then
+            mkdir -p "$CLAUDE_SKILLS_DIR/$skill"
+            cp "$CLI_DIR/$skill/SKILL.md" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
+            "${SED_INPLACE[@]}" \
+                -e "s|__CLI_DIR__|$CLI_DIR|g" \
+                -e "s|__AUTONOMY_DIR__|$AUTONOMY_DIR|g" \
+                -e "s|__INFRA_HOME__|$INFRA_HOME|g" \
+                "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
+            echo "  Installed skill: $skill"
+        fi
+    done
+elif [[ "$DAEMON_BACKEND" == "codex" ]]; then
+    echo "  Codex skills: deferred (Phase 1 — daemon prompt injection provides instructions)"
+fi
 echo "  Done."
 
 # ── Step 9: Type-specific setup ──
@@ -414,8 +445,13 @@ ENVEOF
     echo "  Interactive agent $AGENT_NAME is ready!"
     echo "========================================"
     echo ""
-    echo "Start a Claude Code session:"
-    echo "  sudo su - $(whoami) -c 'cd $WORKSPACE_DIR && claude'"
+    if [[ "$DAEMON_BACKEND" == "codex" ]]; then
+        echo "Start a Codex CLI session:"
+        echo "  sudo su - $(whoami) -c 'cd $WORKSPACE_DIR && codex'"
+    else
+        echo "Start a Claude Code session:"
+        echo "  sudo su - $(whoami) -c 'cd $WORKSPACE_DIR && claude'"
+    fi
     echo ""
 else
     echo "=== Step 9: Agent start script ==="
@@ -448,10 +484,19 @@ export PROJECT_DIR="$WORKSPACE_DIR"
 export TUNNEL_HOST="$TUNNEL_HOST"
 export COMMS_PORT="$COMMS_PORT"
 
+# ── Backend config ──
+export DAEMON_BACKEND="$DAEMON_BACKEND"
+$(if [[ "$DAEMON_BACKEND" == "codex" ]]; then
+    echo "export CODEX_HOME=\"\$HOME/.codex\""
+    echo "export CODEX_MODEL=\"\${CODEX_MODEL:-}\""
+fi)
+
 # ── Daemon config ──
 export WAKE_CHANNELS=""
 export REMBEAT_INTERVAL="21600"
-export MODEL_CTX_SIZE="200000"
+$(if [[ "$DAEMON_BACKEND" == "claude" ]]; then
+    echo 'export MODEL_CTX_SIZE="200000"'
+fi)
 
 # ── Launch ──
 exec "\$AUTONOMY_DIR/bin/launch.sh"
