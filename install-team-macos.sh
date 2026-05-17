@@ -1189,7 +1189,11 @@ NOSTREOF
 
     mkdir -p "$agent_dir/nostr-spool" "$agent_dir/nostr-outbox"
     chown -R "$INFRA_USER:fagent" "$agent_dir"
-    chmod 700 "$agent_dir"
+    # 750 (not 700) so the agent's daemon user can traverse this dir to check
+    # `[ -f "$NOSTR_ENV_FILE" ]` in ensure_nostr_serve / collect_nostr. The
+    # individual 0600 files remain unreadable to non-fagents users -- only
+    # the filenames are visible to fagent-group members.
+    chmod 750 "$agent_dir"
     chmod 600 "$agent_dir/nostr.env"
 
     # Sudoers -- append nostr.mjs to existing rule, or create new
