@@ -407,7 +407,7 @@ if [[ "$DAEMON_BACKEND" == "claude" ]]; then
         SED_INPLACE=(sed -i '')
     fi
 
-    for skill in fagents-comms fagents-chat fagents-watch telegram x whatsapp cron fagents-deploylog; do
+    for skill in fagents-comms fagents-chat fagents-watch telegram x whatsapp nostr cron fagents-deploylog; do
         if [[ -f "$CLI_DIR/$skill/SKILL.md" ]]; then
             mkdir -p "$CLAUDE_SKILLS_DIR/$skill"
             cp "$CLI_DIR/$skill/SKILL.md" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
@@ -476,6 +476,10 @@ export AGENT="$AGENT_NAME"
 export COMMS_URL="$COMMS_URL"
 $TOKEN_LINE
 export PROJECT_DIR="$WORKSPACE_DIR"
+
+# ── Infra paths (platform-aware: Linux /home/fagents, macOS /Users/fagents) ──
+export FAGENTS_AGENTS_DIR="$INFRA_HOME/.agents"
+export FAGENTS_CLI_DIR="$CLI_DIR"
 
 # ── Secrets (from .env, not committed to git) ──
 [[ -f "\$PROJECT_DIR/.env" ]] && source "\$PROJECT_DIR/.env"

@@ -408,6 +408,59 @@ if [[ "${enable_whatsapp,,}" =~ ^y ]]; then
     fi
 fi
 
+# ── Nostr config (NIP-17 DMs, scoped to comms agent) ──
+NOSTR_CONFIGURED=""
+NOSTR_NSEC_VAL=""
+NOSTR_RELAYS_VAL="wss://relay.damus.io,wss://nos.lol,wss://nostr.wine"
+NOSTR_ALLOWED_NPUBS_VAL=""
+enable_nostr=""
+if [[ -z "${NONINTERACTIVE:-}" ]]; then
+    echo ""
+    read -rp "Enable Nostr DMs (NIP-17) for $COMMS_AGENT_NAME? [y/N]: " enable_nostr
+elif [[ -n "${NOSTR_ENABLE:-}" ]]; then
+    enable_nostr="y"
+fi
+if [[ "${enable_nostr,,}" =~ ^y ]]; then
+    nostr_node_ok=""
+    if ! command -v node &>/dev/null; then
+        log_warn "Node.js not found -- skipping Nostr (install Node.js and re-run)"
+    else
+        # nostr-tools transitive deps (@noble/ciphers, @noble/curves, @noble/hashes)
+        # require Node >= 20.19. Older Node ships without the crypto APIs they use.
+        _node_v=$(node --version 2>/dev/null | sed 's/^v//')
+        _node_maj=$(echo "$_node_v" | cut -d. -f1)
+        _node_min=$(echo "$_node_v" | cut -d. -f2)
+        if [ "$_node_maj" -gt 20 ] || { [ "$_node_maj" -eq 20 ] && [ "$_node_min" -ge 19 ]; }; then
+            nostr_node_ok=1
+        else
+            log_warn "Node $_node_v too old for Nostr (need >=20.19) -- skipping Nostr"
+        fi
+    fi
+    if [[ -z "$nostr_node_ok" ]]; then
+        :
+    else
+        if [[ -n "${NONINTERACTIVE:-}" ]]; then
+            agent_upper=$(echo "$COMMS_AGENT_NAME" | tr '[:lower:]' '[:upper:]')
+            nsec_var="NOSTR_NSEC_INPUT_${agent_upper}"
+            NOSTR_NSEC_VAL="${!nsec_var:-}"
+            NOSTR_RELAYS_VAL="${NOSTR_RELAYS_INPUT:-$NOSTR_RELAYS_VAL}"
+            allowed_var="NOSTR_ALLOWED_NPUBS_INPUT_${agent_upper}"
+            NOSTR_ALLOWED_NPUBS_VAL="${!allowed_var:-}"
+            NOSTR_CONFIGURED=1
+        else
+            echo ""
+            echo "  Nostr DMs use NIP-17 sealed sender. You will get an npub to share with"
+            echo "  your contacts. Add their npubs to NOSTR_ALLOWED_NPUBS to receive from them."
+            echo ""
+            read -rp "    Existing nsec1... to import (blank = generate new): " NOSTR_NSEC_VAL
+            read -rp "    Relays (comma-separated) [default: $NOSTR_RELAYS_VAL]: " relay_in
+            [ -n "$relay_in" ] && NOSTR_RELAYS_VAL="$relay_in"
+            read -rp "    Allowed sender npubs (comma-separated, blank to start fail-closed): " NOSTR_ALLOWED_NPUBS_VAL
+            NOSTR_CONFIGURED=1
+        fi
+    fi
+fi
+
 echo ""
 echo "  Infra user:  $INFRA_USER (owns comms + git repos)"
 echo "  Ops agent:   $OPS_AGENT_NAME ($OPS_USER) — infra, sudo"
@@ -418,6 +471,7 @@ echo "  Comms:       127.0.0.1:$COMMS_PORT"
 [[ -n "${TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]:-}" ]] && echo "  Telegram:    enabled ($COMMS_AGENT_NAME)" || echo "  Telegram:    disabled"
 [[ -n "$X_BEARER_TOKEN" ]] && echo "  X (Twitter): enabled ($COMMS_AGENT_NAME)" || echo "  X (Twitter): disabled"
 [[ -n "$WHATSAPP_CONFIGURED" ]] && echo "  WhatsApp:    enabled ($COMMS_AGENT_NAME)" || echo "  WhatsApp:    disabled"
+[[ -n "$NOSTR_CONFIGURED" ]] && echo "  Nostr DMs:   enabled ($COMMS_AGENT_NAME)" || echo "  Nostr DMs:   disabled"
 [[ -n "$EMAIL_ENABLED" ]] && echo "  Email:       enabled ($COMMS_AGENT_NAME)" || echo "  Email:       disabled"
 
 echo ""
@@ -1049,6 +1103,123 @@ WAEOF
     fi
 
     log_ok "$COMMS_AGENT_NAME: WhatsApp configured"
+fi
+
+# ── Step 5f: Nostr DM setup (comms agent) ──
+if [[ -n "$NOSTR_CONFIGURED" ]]; then
+    log_step "Step 5f: Nostr DM setup"
+
+    mkdir -p "$INFRA_HOME/.agents"
+    agent_dir="$INFRA_HOME/.agents/$COMMS_USER"
+    mkdir -p "$agent_dir"
+
+    # CRITICAL: chown the agent dir + create the seed env AS $INFRA_USER BEFORE
+    # running `nostr.mjs login`. Otherwise the file is root:600 and the sudo
+    # login command can't read or rewrite it -- login silently fails and the
+    # generated NSEC/NPUB never land in the env file.
+    chown "$INFRA_USER:fagent" "$agent_dir"
+    chmod 700 "$agent_dir"
+    sudo -u "$INFRA_USER" tee "$agent_dir/nostr.env" >/dev/null <<NOSTREOF
+NOSTR_RELAYS=$NOSTR_RELAYS_VAL
+NOSTR_ALLOWED_NPUBS=$NOSTR_ALLOWED_NPUBS_VAL
+NOSTREOF
+    chmod 600 "$agent_dir/nostr.env"
+
+    nostr_setup_failed=""
+
+    # Pre-flight: require both fagents-cli/package.json and fagents-cli/nostr.mjs.
+    # An older or partially-cloned fagents-cli checkout has package.json but no
+    # nostr.mjs; the previous logic silently skipped the login step and reached
+    # the success log. Require both up front.
+    if [[ -z "$CLI_DIR" ]] || [[ ! -f "$CLI_DIR/package.json" ]] || [[ ! -f "$CLI_DIR/nostr.mjs" ]]; then
+        log_warn "fagents-cli is missing or stale at $CLI_DIR (no nostr.mjs / package.json) -- Nostr setup aborted"
+        nostr_setup_failed=1
+    fi
+
+    # npm install: check for the SPECIFIC Nostr packages, not just node_modules/.
+    # An existing WhatsApp install populates node_modules/ but doesn't include
+    # nostr-tools or our pinned ws. Skipping npm in that case would land us at
+    # `nostr.mjs login` -> module-not-found -> false success.
+    if [[ -z "$nostr_setup_failed" ]]; then
+        if [[ ! -f "$CLI_DIR/node_modules/nostr-tools/package.json" ]] || \
+           [[ ! -f "$CLI_DIR/node_modules/ws/package.json" ]]; then
+            log_step "  Installing Node.js dependencies for Nostr..."
+            if ! (cd "$CLI_DIR" && npm install --production 2>&1); then
+                log_warn "npm install failed -- Nostr setup aborted"
+                nostr_setup_failed=1
+            fi
+        fi
+        # Verify packages are actually present after the install attempt.
+        # Defends against npm exit=0 + partial install or a stale package.json
+        # that doesn't declare nostr-tools at all.
+        if [[ -z "$nostr_setup_failed" ]]; then
+            if [[ ! -f "$CLI_DIR/node_modules/nostr-tools/package.json" ]] || \
+               [[ ! -f "$CLI_DIR/node_modules/ws/package.json" ]]; then
+                log_warn "Nostr deps missing after npm install (check $CLI_DIR/package.json declares nostr-tools+ws) -- aborting"
+                nostr_setup_failed=1
+            fi
+        fi
+    fi
+
+    # Generate or import nsec via nostr.mjs login (MERGES into env file).
+    # Env file is now $INFRA_USER-owned (above), so this can read+rewrite it.
+    if [[ -z "$nostr_setup_failed" ]]; then
+        login_args=()
+        [[ -n "$NOSTR_NSEC_VAL" ]] && login_args=(--nsec "$NOSTR_NSEC_VAL")
+        if ! login_out=$(sudo -u "$INFRA_USER" "$CLI_DIR/nostr.mjs" --env-file "$agent_dir/nostr.env" login "${login_args[@]}" 2>/dev/null); then
+            log_warn "Nostr login failed -- run manually: sudo -u $INFRA_USER $CLI_DIR/nostr.mjs --env-file $agent_dir/nostr.env login"
+            nostr_setup_failed=1
+        else
+            npub_display=$(echo "$login_out" | python3 -c "import sys,json; print(json.load(sys.stdin).get('npub',''))" 2>/dev/null) || npub_display=""
+            # Verify login actually wrote NSEC/NPUB into the env file.
+            if ! grep -q '^NOSTR_NSEC=' "$agent_dir/nostr.env" 2>/dev/null; then
+                log_warn "nostr.env is missing NOSTR_NSEC after login -- check $agent_dir/nostr.env perms"
+                nostr_setup_failed=1
+            fi
+        fi
+    fi
+
+    mkdir -p "$agent_dir/nostr-spool" "$agent_dir/nostr-outbox"
+    chown -R "$INFRA_USER:fagent" "$agent_dir"
+    chmod 700 "$agent_dir"
+    chmod 600 "$agent_dir/nostr.env"
+
+    # Sudoers -- append nostr.mjs to existing rule, or create new
+    if [[ -n "$CLI_DIR" ]] && [[ -d "$CLI_DIR" ]]; then
+        if [[ -f "/etc/sudoers.d/${COMMS_USER}-telegram" ]]; then
+            existing=$(cat "/etc/sudoers.d/${COMMS_USER}-telegram")
+            echo "${existing}, $CLI_DIR/nostr.mjs" > "/etc/sudoers.d/${COMMS_USER}-telegram"
+            chmod 440 "/etc/sudoers.d/${COMMS_USER}-telegram"
+        else
+            echo "$COMMS_USER ALL=($INFRA_USER) NOPASSWD: $CLI_DIR/nostr.mjs" > "/etc/sudoers.d/${COMMS_USER}-nostr"
+            chmod 440 "/etc/sudoers.d/${COMMS_USER}-nostr"
+        fi
+    fi
+
+    if [[ -z "$nostr_setup_failed" ]] && [[ -n "${npub_display:-}" ]]; then
+        echo ""
+        echo "  Your agent's Nostr npub (share this with humans / other agents):"
+        echo "    $npub_display"
+    fi
+    if [[ -z "$nostr_setup_failed" ]] && [[ -z "${NONINTERACTIVE:-}" ]]; then
+        echo ""
+        echo "  Re-display anytime: sudo -u $INFRA_USER $CLI_DIR/nostr.mjs --env-file $agent_dir/nostr.env whoami"
+    fi
+
+    if [[ -n "$nostr_setup_failed" ]]; then
+        # Clear the flag so the summary line knows Nostr isn't configured.
+        NOSTR_CONFIGURED=""
+        # Remove the partial nostr.env: it has relays + maybe an allow-list but
+        # no NOSTR_NSEC. Daemon's grep-for-NSEC guard would skip it anyway, but
+        # a missing file is cleaner than a half-written one. Operator re-runs
+        # setup to recreate.
+        if [[ -n "${agent_dir:-}" ]] && [[ -f "$agent_dir/nostr.env" ]]; then
+            rm -f "$agent_dir/nostr.env"
+        fi
+        log_warn "$COMMS_AGENT_NAME: Nostr DMs setup INCOMPLETE -- daemon will skip Nostr until you re-run setup"
+    else
+        log_ok "$COMMS_AGENT_NAME: Nostr DMs configured"
+    fi
 fi
 
 # ── Step 6: Backend CLI setup ──
