@@ -35,11 +35,12 @@ done
 ```bash
 REPO="fagents-cli"  # change to whichever repo is behind
 
-# 0. Preflight: normalize .git ownership. Idempotent; covers pre-existing
-#    installs where prior raw `sudo git` ops left root-owned objects in
-#    .git/objects/ -- those silently break future fagents-owned pulls.
-sudo chown -R fagents:fagent "$INFRA_HOME/repos/${REPO}.git"
-sudo chown -R fagents:fagent "$INFRA_HOME/workspace/${REPO}/.git"
+# 0. Preflight: normalize .git ownership across ALL repos. Idempotent
+#    (chown on already-correct ownership is a no-op). Sweeps every bare
+#    repo AND every workspace .git in one pass -- catches drift in
+#    repos other than the one being pulled today. Cheap; just run it.
+sudo chown -R fagents:fagent "$INFRA_HOME/repos"
+sudo chown -R fagents:fagent "$INFRA_HOME/workspace"
 
 # 1. Fetch into bare repo (run AS fagents so new objects are fagents-owned)
 sudo -Hu fagents git -C "$INFRA_HOME/repos/${REPO}.git" \
