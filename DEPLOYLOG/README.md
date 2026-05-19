@@ -35,14 +35,25 @@ done
 ```bash
 REPO="fagents-cli"  # change to whichever repo is behind
 
-# 1. Fetch into bare repo
-sudo git -C "$INFRA_HOME/repos/${REPO}.git" fetch "https://github.com/fagents/${REPO}.git" main:main
+# 0. Preflight: normalize .git ownership. Idempotent; covers pre-existing
+#    installs where prior raw `sudo git` ops left root-owned objects in
+#    .git/objects/ -- those silently break future fagents-owned pulls.
+sudo chown -R fagents:fagent "$INFRA_HOME/repos/${REPO}.git"
+sudo chown -R fagents:fagent "$INFRA_HOME/workspace/${REPO}/.git"
 
-# 2. Pull into workspace
-sudo git -C "$INFRA_HOME/workspace/${REPO}" pull
+# 1. Fetch into bare repo (run AS fagents so new objects are fagents-owned)
+sudo -Hu fagents git -C "$INFRA_HOME/repos/${REPO}.git" \
+    fetch "https://github.com/fagents/${REPO}.git" main:main
+
+# 2. Pull into workspace (same reasoning)
+sudo -Hu fagents git -C "$INFRA_HOME/workspace/${REPO}" pull
 ```
 
-Repos are owned by the `fagents` user — sudo is required.
+Repos are owned by the `fagents` user. Always run write-side git ops
+(fetch / pull / clone) through `sudo -Hu fagents` so new objects are
+created as `fagents:fagent`. Raw `sudo git` runs as root and creates
+root-owned objects in `.git/objects/`, which then break future
+fagents-owned pulls until chown'd back.
 
 ## After pulling
 
