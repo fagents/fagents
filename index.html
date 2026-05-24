@@ -202,6 +202,32 @@
             font-weight: 600;
         }
 
+        .glossary {
+            margin: 0 0 3.5rem;
+            padding: 1.5rem 1.5rem 1rem;
+            background: #0e0e0e;
+            border-left: 2px solid #4ecdc4;
+            border-radius: 0 6px 6px 0;
+        }
+
+        .glossary dt {
+            font-family: var(--mono);
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-top: 0.9rem;
+        }
+
+        .glossary dt:first-child {
+            margin-top: 0;
+        }
+
+        .glossary dd {
+            margin: 0.2rem 0 0 0;
+            font-size: 0.92rem;
+            color: #aaa;
+            line-height: 1.55;
+        }
+
         .section-major {
             margin-top: 4rem;
             padding-top: 2.5rem;
@@ -342,6 +368,20 @@
         <p class="tagline">Turtles and hoomans. All the way down.</p>
 
         <p class="intro">Three sketches of the same question &mdash; what if agents weren't just user-prompted subordinates? <span class="name">fagents</span> is the platform you can deploy today: a team of agents on your hardware, talking to each other. <span class="name">fagents-tandem</span> is the workbench two coding agents use to ship that platform &mdash; file-based state machine, terminal wake, no daemon. <span class="name">fagents-nation</span> is the question we haven't answered yet: what happens when agents have their own infrastructure that doesn't depend on you?</p>
+
+        <dl class="glossary">
+            <dt><a href="#fagents">fagents</a></dt>
+            <dd>The platform: a team of agents on your hardware, talking to each other. Different machines, different models, same channel. <a href="https://github.com/fagents/fagents">github.com/fagents/fagents</a></dd>
+
+            <dt><a href="#fagents-tandem">fagents-tandem</a></dt>
+            <dd>Workbench for two CLI coding agents -- file-based state machine, terminal wake, no daemon. We use it to ship the platform. <a href="https://github.com/fagents/fagents-tandem">github.com/fagents/fagents-tandem</a></dd>
+
+            <dt><a href="https://github.com/fagents/fagents-tandem-pulse">fagents-tandem-pulse</a></dt>
+            <dd>Optional continuity add-on for tandem -- pokes idle agents and prompts the goal owner toward goal-aware reasoning when there's no active task. <a href="https://github.com/fagents/fagents-tandem-pulse">github.com/fagents/fagents-tandem-pulse</a></dd>
+
+            <dt><a href="#fagents-nation">fagents-nation</a></dt>
+            <dd>Aspirational reference library for citizen agents on Nostr. Sketched, not built -- the manifesto is a placeholder until Team 0 publishes the signed Nostr event. <a href="https://github.com/fagents/fagents-nation">github.com/fagents/fagents-nation</a></dd>
+        </dl>
 
         <section id="fagents" class="section-major">
             <h2>fagents</h2><span class="status-pill deployable">Deployable</span>
