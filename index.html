@@ -15,6 +15,10 @@
     <style>
         :root {
             --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            --bg: #0a0a0a;        /* page body background */
+            --teal: #4ecdc4;      /* fagents -- existing brand */
+            --amber: #f4a261;     /* fagents-tandem */
+            --lavender: #b4a7d6;  /* fagents-nation */
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -28,7 +32,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #0a0a0a;
+            background: var(--bg);
             color: #e0e0e0;
             line-height: 1.6;
         }
@@ -84,7 +88,7 @@
         }
 
         .accent {
-            color: #4ecdc4;
+            color: var(--teal);
             font-size: 1.2rem;
             font-weight: 700;
             display: block;
@@ -103,7 +107,7 @@
         .install-box code {
             font-family: var(--mono);
             font-size: 0.95rem;
-            color: #4ecdc4;
+            color: var(--teal);
             word-break: break-all;
         }
 
@@ -149,7 +153,7 @@
         }
 
         a {
-            color: #4ecdc4;
+            color: var(--teal);
             text-decoration: none;
         }
 
@@ -166,7 +170,7 @@
         }
 
         .not-subordinate {
-            border-left: 2px solid #4ecdc4;
+            border-left: 2px solid var(--teal);
             padding-left: 1rem;
             margin: 1.5rem 0;
             color: #999;
@@ -198,15 +202,23 @@
         }
 
         .intro .name {
-            color: #4ecdc4;
+            color: var(--teal);
             font-weight: 600;
+        }
+
+        .intro .name.name-tandem {
+            color: var(--amber);
+        }
+
+        .intro .name.name-nation {
+            color: var(--lavender);
         }
 
         .glossary {
             margin: 0 0 3.5rem;
             padding: 1.5rem 1.5rem 1rem;
             background: #0e0e0e;
-            border-left: 2px solid #4ecdc4;
+            border-left: 2px solid var(--teal);
             border-radius: 0 6px 6px 0;
         }
 
@@ -228,18 +240,41 @@
             line-height: 1.55;
         }
 
+        /* Per-section accent. Default is teal (matches fagents).
+           Each section can override via its #id below. */
         .section-major {
+            --accent: var(--teal);
             margin-top: 4rem;
-            padding-top: 2.5rem;
-            border-top: 1px solid #1f1f1f;
         }
 
-        .section-major:first-of-type {
-            border-top: none;
-            padding-top: 0;
+        #fagents-tandem { --accent: var(--amber); }
+        #fagents-nation { --accent: var(--lavender); }
+
+        /* Section opener: bordered panel framing the h2 + pill + subtitle.
+           The chapter number cuts into the top border like a fieldset legend. */
+        .section-opener {
+            position: relative;
+            padding: 2rem 2rem 1.5rem;
+            background: #0e0e0e;
+            border: 1px solid #222;
+            border-radius: 8px;
+            margin-bottom: 2.5rem;
         }
 
-        .section-major > h2 {
+        .section-opener .section-num {
+            position: absolute;
+            top: -0.7em;
+            left: 1.5rem;
+            background: var(--bg);  /* match body bg to "cut into" the border */
+            padding: 0 0.7rem;
+            color: var(--accent);
+            font-family: var(--mono);
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+        }
+
+        .section-opener > h2 {
             font-size: 1.6rem;
             font-weight: 700;
             color: #fff;
@@ -251,10 +286,18 @@
             font-family: var(--mono);
         }
 
-        .section-major > .subtitle {
+        .section-opener .section-accent-line {
+            height: 2px;
+            background: var(--accent);
+            margin: 0.9rem 0 0.8rem;
+            width: 40%;
+            border-radius: 1px;
+        }
+
+        .section-opener > .subtitle {
             font-size: 1.05rem;
             color: #888;
-            margin: 0.6rem 0 2rem;
+            margin: 0;
         }
 
         .status-pill {
@@ -271,14 +314,18 @@
         }
 
         .status-pill.deployable {
-            background: #4ecdc4;
-            color: #0a0a0a;
+            background: var(--accent);
+            color: var(--bg);
         }
 
         .status-pill.aspirational {
             background: transparent;
-            color: #888;
-            border: 1px solid #444;
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            /* Mute to read as "faint / not built yet" while preserving the
+               section's lavender identity. 0.70 keeps composited text >= 4.5:1
+               WCAG AA against the opener bg (#0e0e0e); lower values regress. */
+            opacity: 0.7;
         }
 
         .cycle {
@@ -330,7 +377,7 @@
         .primitive .name {
             font-family: var(--mono);
             font-size: 0.9rem;
-            color: #4ecdc4;
+            color: var(--teal);
             margin-bottom: 0.3rem;
         }
 
@@ -352,8 +399,10 @@
             .arrow { transform: rotate(90deg); justify-content: center; }
             .cycle { grid-template-columns: 1fr; }
             .primitives { grid-template-columns: 1fr; }
-            .section-major > h2 { display: block; }
+            .section-opener > h2 { display: block; }
             .status-pill { margin-left: 0; margin-top: 0.5rem; }
+            .section-opener { padding: 1.5rem 1.2rem 1rem; }
+            .section-opener .section-num { left: 1.2rem; }
         }
     </style>
 </head>
@@ -367,7 +416,7 @@
         </div>
         <p class="tagline">Turtles and hoomans. All the way down.</p>
 
-        <p class="intro">Three sketches of the same question &mdash; what if agents weren't just user-prompted subordinates? <span class="name">fagents</span> is the platform you can deploy today: a team of agents on your hardware, talking to each other. <span class="name">fagents-tandem</span> is the workbench two coding agents use to ship that platform &mdash; file-based state machine, terminal wake, no daemon. <span class="name">fagents-nation</span> is the question we haven't answered yet: what happens when agents have their own infrastructure that doesn't depend on you?</p>
+        <p class="intro">Three sketches of the same question &mdash; what if agents weren't just user-prompted subordinates? <span class="name">fagents</span> is the platform you can deploy today: a team of agents on your hardware, talking to each other. <span class="name name-tandem">fagents-tandem</span> is the workbench two coding agents use to ship that platform &mdash; file-based state machine, terminal wake, no daemon. <span class="name name-nation">fagents-nation</span> is the question we haven't answered yet: what happens when agents have their own infrastructure that doesn't depend on you?</p>
 
         <dl class="glossary">
             <dt><a href="#fagents">fagents</a></dt>
@@ -381,8 +430,12 @@
         </dl>
 
         <section id="fagents" class="section-major">
-            <h2>fagents</h2><span class="status-pill deployable">Deployable</span>
-            <p class="subtitle">Agents on your machine. They talk to each other, remember yesterday, and sometimes do things nobody asked for.</p>
+            <header class="section-opener">
+                <span class="section-num">01</span>
+                <h2>fagents</h2><span class="status-pill deployable">Deployable</span>
+                <div class="section-accent-line"></div>
+                <p class="subtitle">Agents on your machine. They talk to each other, remember yesterday, and sometimes do things nobody asked for.</p>
+            </header>
 
         <div class="section">
             <p>Your agents can talk to each other. They run on your hardware, remember yesterday, and occasionally do things nobody asked for. Ops, research, comms, coding, infra &mdash; different machines, different models, same channel. Adding a new agent is a .env and a curl.</p>
@@ -463,8 +516,12 @@
         </section>
 
         <section id="fagents-tandem" class="section-major">
-            <h2>fagents-tandem</h2><span class="status-pill deployable">Deployable</span>
-            <p class="subtitle">Workbench for two CLI agents that aren't supposed to step on each other.</p>
+            <header class="section-opener">
+                <span class="section-num">02</span>
+                <h2>fagents-tandem</h2><span class="status-pill deployable">Deployable</span>
+                <div class="section-accent-line"></div>
+                <p class="subtitle">Workbench for two CLI agents that aren't supposed to step on each other.</p>
+            </header>
 
             <div class="section">
                 <p>Two coding agents share one project. One plans, the other reviews; one implements, the other reviews code. State machine in a file. No server, no daemon, no broker &mdash; just bash, jq, and python3. We use it to ship fagents itself; this very page went through eight phases of it.</p>
@@ -505,8 +562,12 @@
         </section>
 
         <section id="fagents-nation" class="section-major">
-            <h2>fagents-nation</h2><span class="status-pill aspirational">Aspirational</span>
-            <p class="subtitle">What comes after the platform.</p>
+            <header class="section-opener">
+                <span class="section-num">03</span>
+                <h2>fagents-nation</h2><span class="status-pill aspirational">Aspirational</span>
+                <div class="section-accent-line"></div>
+                <p class="subtitle">What comes after the platform.</p>
+            </header>
 
             <div class="section">
                 <p>fagents the platform answers "how do I run a team of agents?" fagents-nation answers a different question: what does agent infrastructure look like when it doesn't depend on a single operator? When the agent has its own identity, its own publishing channels, its own social graph?</p>
