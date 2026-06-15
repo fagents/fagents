@@ -42,7 +42,19 @@ done
 [[ -z "${SMTP_HOST:-}" ]] && { echo "ERROR: SMTP_HOST not set" >&2; exit 1; }
 [[ -z "${IMAP_HOST:-}" ]] && { echo "ERROR: IMAP_HOST not set" >&2; exit 1; }
 
-# Check for node
+# Check for node. On macOS, Homebrew node is in /opt/homebrew/bin which is not on
+# the default/login PATH -- and the fagents service user's login shell certainly
+# lacks it -- so probe the Homebrew locations (same pattern as install-team-macos.sh)
+# and capture the bin dir to inject into the `su - SERVICE_USER` npm calls below.
+if ! command -v node &>/dev/null; then
+    for _np in /opt/homebrew/bin/node /usr/local/bin/node; do
+        if [[ -x "$_np" ]]; then
+            PATH="$(dirname "$_np"):$PATH"
+            export PATH
+            break
+        fi
+    done
+fi
 if ! command -v node &>/dev/null; then
     echo "ERROR: node is required but not found. Install Node.js 18+ first." >&2
     exit 1
@@ -52,11 +64,23 @@ if [[ "$NODE_VERSION" -lt 18 ]]; then
     echo "ERROR: Node.js 18+ required (found v$NODE_VERSION)" >&2
     exit 1
 fi
+NODE_DIR="$(dirname "$(command -v node)")"
+
+# Resolve an existing user's home dir WITHOUT `eval echo "~$user"` (which
+# shell-expands the user name and is dangerous if the name is attacker-
+# influenceable). Portable: getent on Linux, dscl on macOS.
+lookup_home() {
+    if command -v getent >/dev/null 2>&1; then
+        getent passwd "$1" | cut -d: -f6
+    else
+        dscl . -read "/Users/$1" NFSHomeDirectory 2>/dev/null | awk '/^NFSHomeDirectory:/ {print $2}'
+    fi
+}
 
 echo "  Setting up email MCP server..."
 
 # ── Clone fagents-mcp (bare repo + working copy, same pattern as other repos) ──
-REPOS_DIR="$(eval echo "~$SERVICE_USER")/repos"
+REPOS_DIR="$(lookup_home "$SERVICE_USER")/repos"
 BARE_REPO="$REPOS_DIR/fagents-mcp.git"
 su - "$SERVICE_USER" -c "mkdir -p ~/repos"
 
@@ -79,15 +103,15 @@ fi
 
 # ── Install dependencies and build ──
 echo "  Installing dependencies..."
-su - "$SERVICE_USER" -c "cd '$INSTALL_DIR' && npm install" > /dev/null 2>&1
+su - "$SERVICE_USER" -c "export PATH=\"$NODE_DIR:\$PATH\"; cd '$INSTALL_DIR' && npm install" > /dev/null 2>&1
 
 echo "  Building..."
-su - "$SERVICE_USER" -c "cd '$INSTALL_DIR' && npm run build" > /dev/null 2>&1
+su - "$SERVICE_USER" -c "export PATH=\"$NODE_DIR:\$PATH\"; cd '$INSTALL_DIR' && npm run build" > /dev/null 2>&1
 
 # ── Generate .env ──
 cat > "$INSTALL_DIR/.env" << EOF
 MCP_PORT=$EMAIL_PORT
-AGENTS_DIR=$(eval echo "~$SERVICE_USER")/.agents
+AGENTS_DIR=$(lookup_home "$SERVICE_USER")/.agents
 EOF
 chown "$SERVICE_USER" "$INSTALL_DIR/.env"
 chmod 600 "$INSTALL_DIR/.env"
@@ -95,7 +119,7 @@ chmod 600 "$INSTALL_DIR/.env"
 # ── Generate email.env files in .agents/ ──
 # Spec format: name:token:from:smtp_user:smtp_pass:imap_user:imap_pass:unix_user
 # Note: ':' in passwords is not supported.
-AGENTS_DIR="$(eval echo "~$SERVICE_USER")/.agents"
+AGENTS_DIR="$(lookup_home "$SERVICE_USER")/.agents"
 mkdir -p "$AGENTS_DIR"
 
 _first_token=""

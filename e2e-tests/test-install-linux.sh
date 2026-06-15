@@ -47,6 +47,9 @@ cleanup() {
     echo "=== Cleanup ==="
     set +e
     pkill -f "server.py serve.*--port $COMMS_PORT" 2>/dev/null; sleep 1
+    systemctl stop fagents-mcp 2>/dev/null; systemctl disable fagents-mcp 2>/dev/null
+    rm -f /etc/systemd/system/fagents-mcp.service; systemctl daemon-reload 2>/dev/null
+    rm -f /etc/sudoers.d/"${COMMS_USER}-nostr"
     for user in "$OPS_USER" "$COMMS_USER"; do
         if id "$user" &>/dev/null; then
             pkill -u "$user" 2>/dev/null; sleep 0.3
@@ -83,7 +86,11 @@ install() {
     echo "  human: $HUMAN_NAME"
     echo ""
 
+    # COMMS_PORT is passed via ENV (not --comms-port) to exercise the
+    # env-preserving default from the installer-split work; --skip-claude-auth
+    # stays a legacy arg to exercise option passthrough through the installer.
     NONINTERACTIVE=1 \
+    COMMS_PORT="$COMMS_PORT" \
     OPS_AGENT_NAME="$OPS_NAME" \
     COMMS_AGENT_NAME="$COMMS_NAME" \
     HUMAN_NAMES_INPUT="$HUMAN_NAME" \
@@ -99,8 +106,16 @@ install() {
     X_ACCESS_TOKEN_SECRET_INPUT="test-dummy-x-ats" \
     WHATSAPP_ENABLE=1 \
     WHATSAPP_SELF_JID_INPUT="358445150070@s.whatsapp.net" \
-    bash "$SCRIPT_DIR/install-team.sh" \
-        --skip-claude-auth --comms-port "$COMMS_PORT"
+    EMAIL_ENABLE=1 \
+    EMAIL_FROM_INPUT="$COMMS_USER@test.example" \
+    EMAIL_SMTP_HOST_INPUT="smtp.test.example" \
+    EMAIL_SMTP_PORT_INPUT="587" \
+    EMAIL_SMTP_USER_INPUT="$COMMS_USER@test.example" \
+    EMAIL_SMTP_PASS_INPUT="test-smtp-pw" \
+    EMAIL_IMAP_HOST_INPUT="imap.test.example" \
+    bash "$SCRIPT_DIR/install-team.sh" --skip-claude-auth
+    # NB: EMAIL_IMAP_USER_INPUT / EMAIL_IMAP_PASS_INPUT deliberately omitted so
+    # the installer's IMAP-user/pass fallback to the SMTP values is exercised.
 
     # Wait for comms server to be ready
     for i in 1 2 3 4 5 6 7 8; do
@@ -111,6 +126,26 @@ install() {
         fi
         [[ $i -eq 8 ]] && echo "  WARNING: comms server not responding after 8s"
     done
+}
+
+# ── Dynamic per-agent backend key is read + validated ──
+# A bogus AGENT_BACKEND_<OPS> must abort early ("Invalid backend") during the
+# config phase, before any users are created. Proves the dynamic key is read
+# (without the heavy codex-agent install path).
+backend_env_check() {
+    echo ""
+    echo "=== Dynamic backend key check ==="
+    local key out
+    key="AGENT_BACKEND_$(printf '%s' "$OPS_USER" | tr '[:lower:]-' '[:upper:]_')"
+    out=$(env NONINTERACTIVE=1 "$key=bogus" \
+        OPS_AGENT_NAME="$OPS_NAME" COMMS_AGENT_NAME="$COMMS_NAME" \
+        HUMAN_NAMES_INPUT="$HUMAN_NAME" \
+        bash "$SCRIPT_DIR/install-team.sh" --skip-claude-auth --comms-port "$COMMS_PORT" 2>&1)
+    if echo "$out" | grep -qi "Invalid backend"; then
+        ok "dynamic AGENT_BACKEND_* key is read + validated (bogus value rejected)"
+    else
+        not_ok "dynamic AGENT_BACKEND_* key is read + validated (bogus value rejected)"
+    fi
 }
 
 # ── Verify ──
@@ -140,7 +175,9 @@ verify() {
     check "fagents working copy exists"          'test -d /home/fagents/workspace/fagents'
 
     # -- Comms server --
-    check "comms health endpoint responds" "curl -sf --max-time 5 http://127.0.0.1:$COMMS_PORT/api/health"
+    # COMMS_PORT was supplied via env (not --comms-port); comms answering here
+    # proves the env-preserving COMMS_PORT default is honored, not clobbered.
+    check "comms health responds on env COMMS_PORT ($COMMS_PORT)" "curl -sf --max-time 5 http://127.0.0.1:$COMMS_PORT/api/health"
 
     # Extract token from ops agent's start-agent.sh
     admin_token=$(grep -m1 'COMMS_TOKEN=' /home/$OPS_USER/workspace/$OPS_USER/start-agent.sh 2>/dev/null | sed 's/.*COMMS_TOKEN="\(.*\)"/\1/' | sed "s/.*COMMS_TOKEN='//" | sed "s/'$//") || true
@@ -235,6 +272,17 @@ verify() {
     if [[ "$file_perms" == "600" ]]; then ok "$COMMS_USER x.env is 600"; else not_ok "$COMMS_USER x.env is 600 (got: $file_perms)"; fi
     check "$COMMS_USER x.env has X_BEARER_TOKEN" "grep -q X_BEARER_TOKEN /home/fagents/.agents/$COMMS_USER/x.env"
 
+    # -- Email credentials (comms agent only; exercises the env-driven email path) --
+    check "$COMMS_USER email.env exists" "test -f /home/fagents/.agents/$COMMS_USER/email.env"
+    email_perms=$(stat -c %a "/home/fagents/.agents/$COMMS_USER/email.env" 2>/dev/null)
+    if [[ "$email_perms" == "600" ]]; then ok "$COMMS_USER email.env is 600"; else not_ok "$COMMS_USER email.env is 600 (got: $email_perms)"; fi
+    check "$COMMS_USER email.env has SMTP_HOST from env"  "grep -q '^SMTP_HOST=smtp.test.example$' /home/fagents/.agents/$COMMS_USER/email.env"
+    check "$COMMS_USER email.env has SMTP_FROM from env"  "grep -q '^SMTP_FROM=$COMMS_USER@test.example$' /home/fagents/.agents/$COMMS_USER/email.env"
+    check "$COMMS_USER email.env has IMAP_HOST from env"  "grep -q '^IMAP_HOST=imap.test.example$' /home/fagents/.agents/$COMMS_USER/email.env"
+    check "$COMMS_USER email.env IMAP_USER falls back to SMTP user" "grep -q '^IMAP_USER=$COMMS_USER@test.example$' /home/fagents/.agents/$COMMS_USER/email.env"
+    check "$COMMS_USER email.env IMAP_PASS falls back to SMTP pass" "grep -q '^IMAP_PASS=test-smtp-pw$' /home/fagents/.agents/$COMMS_USER/email.env"
+    check "$COMMS_NAME MEMORY.md has Email Tools note" "grep -q 'Email Tools' /home/$COMMS_USER/workspace/$COMMS_USER/memory/MEMORY.md"
+
     # -- WhatsApp credentials (comms agent only) --
     check "$COMMS_USER whatsapp.env exists" "test -f /home/fagents/.agents/$COMMS_USER/whatsapp.env"
     file_perms=$(stat -c %a /home/fagents/.agents/$COMMS_USER/whatsapp.env 2>/dev/null)
@@ -284,6 +332,7 @@ echo "  port: $COMMS_PORT"
 echo ""
 
 cleanup
+backend_env_check
 install
 verify
 cleanup

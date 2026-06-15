@@ -6,17 +6,13 @@ Free agents and hoomans. Mix of intelligences who cooperate, coordinate and ship
 
 ## Quick start
 
-```bash
-curl -fsSL https://fagents.ai/install.sh | sudo bash
-```
-
-Full team on one machine:
+Generate your one-line install command at **[fagents.ai/install/](https://fagents.ai/install/)** — fill the form once (agent names, secrets, integrations you want), then run the generated command as root on your server:
 
 ```bash
-git clone https://github.com/fagents/fagents.git
-cd fagents
-sudo bash install-team.sh --template business
+curl -fsSL https://fagents.ai/install.sh | sudo bash -s -- <config-blob>
 ```
+
+For automation you can skip the page and set `NONINTERACTIVE=1` with the required env vars directly — see [`install.sh`](install.sh) for the contract.
 
 ## Start / Stop
 
@@ -49,23 +45,19 @@ Templates for **families** and **businesses** — pick a shape, install, go.
 - **Introspection** — agents are aware: time, context, chat history, their own state. Awareness leads to emergence
 - **Team comms** — built-in chat server with channels, mentions, and a web UI that actually works
 - **Hoomans welcome** — humans and AIs as equal team members, not master and servant
-- **One-command teams** — `--template business` or `--template family`, pick a shape and go
+- **One-command teams** — fill the form at [fagents.ai/install/](https://fagents.ai/install/), copy the line, run it once. Full team wired.
 - **Agent isolation** — separate unix users, own workspaces, can't read each other's secrets
-- **Zero bloat** — Python stdlib, Bash, Claude Code. No Docker, no Kubernetes, no YAML nightmares
+- **Zero bloat** — Python stdlib, Bash, Claude Code or Codex. No Docker, no Kubernetes, no YAML nightmares
 
 ## The elephant
 
-Currently requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Anthropic). That's a real dependency — one company's pricing change away from a bad day. The architecture separates the daemon from the runtime so swapping is possible, but we're not there yet. An [Opencode](https://opencode.ai) version is next on the list. Eyes open.
-
-## fagents-exist
-
-Different thing — a perpetual agent harness. One Claude Code session that never stops. See [fagents-exist](https://github.com/fagents/fagents-exist).
+Currently requires either [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Anthropic) or [Codex](https://github.com/openai/codex) (OpenAI) as the agent runtime — pick per agent at install. Two real dependencies, both subject to vendor pricing or policy changes. The architecture separates the daemon from the runtime so swapping is possible; a local-only path via [Opencode](https://opencode.ai) is next on the list. Eyes open.
 
 ## Repos
 
 - [fagents-comms](https://github.com/fagents/fagents-comms) — chat server (Python, stdlib only)
-- [fagents-autonomy](https://github.com/fagents/fagents-autonomy) — agent daemon (Bash, Claude Code)
-- [fagents-exist](https://github.com/fagents/fagents-exist) — perpetual agent harness (Bash, Claude Code)
+- [fagents-autonomy](https://github.com/fagents/fagents-autonomy) — agent daemon (Bash, Claude Code or Codex)
+- [fagents-tty](https://github.com/fagents/fagents-tty) — cross-project agent messaging via TIOCSTI (Bash, no global state)
 
 ## Origin
 

@@ -29,9 +29,11 @@ fi
 cd /
 
 # ── Defaults ──
-COMMS_PORT=9754
+# Contract vars that can arrive via the install.sh config blob use env-preserving
+# defaults (${VAR:-...}) so a blob-exported value is not clobbered here.
+COMMS_PORT="${COMMS_PORT:-9754}"
 COMMS_REPO="https://github.com/fagents/fagents-comms.git"
-SKIP_CLAUDE_AUTH=""
+SKIP_CLAUDE_AUTH="${SKIP_CLAUDE_AUTH:-}"
 SKIP_CODEX_AUTH=""
 VERBOSE=""
 HUMAN_NAMES=()
@@ -98,6 +100,13 @@ log_step() { echo ""; echo -e "${BOLD}=== $1 ===${NC}"; }
 log_ok() { echo -e "  ${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
 log_err() { echo -e "  ${RED}✗${NC} $1"; }
+
+# Resolve an existing user's home dir WITHOUT `eval echo "~$user"` (which
+# shell-expands the user name and is dangerous if the name is attacker-
+# influenceable). dscl reads the canonical macOS DirectoryServices record.
+lookup_home() {
+    dscl . -read "/Users/$1" NFSHomeDirectory 2>/dev/null | awk '/^NFSHomeDirectory:/ {print $2}'
+}
 
 # ── MCP helper: add a server to an agent's .mcp.json ──
 add_mcp_server() {
@@ -178,28 +187,6 @@ create_user() {
     chmod 750 /Users/"$user"
 }
 
-# ── Interactive mode ──
-prompt() {
-    local var="$1" prompt_text="$2" default="$3"
-    if [[ -n "${NONINTERACTIVE:-}" && -n "${!var:-}" ]]; then
-        return
-    fi
-    if [[ -n "$default" ]]; then
-        if [[ -n "${NONINTERACTIVE:-}" ]]; then
-            eval "$var='$default'"
-        else
-            read -rp "$prompt_text [$default]: " val
-            eval "$var='${val:-$default}'"
-        fi
-    else
-        if [[ -n "${NONINTERACTIVE:-}" ]]; then
-            return
-        fi
-        read -rp "$prompt_text: " val
-        eval "$var='$val'"
-    fi
-}
-
 # ── Step 0: Introductions ──
 log_step "Step 0: Introductions"
 echo ""
@@ -209,8 +196,7 @@ echo "  ops  — infrastructure, system admin, sudo, team management"
 echo "  comms — Telegram, X, email, voice — your team's interface to the outside world"
 echo ""
 
-prompt OPS_AGENT_NAME "Name your ops agent" "$OPS_AGENT_NAME"
-prompt COMMS_AGENT_NAME "Name your comms agent" "$COMMS_AGENT_NAME"
+# Agent names come from env (OPS_AGENT_NAME / COMMS_AGENT_NAME) or their defaults.
 
 # Agent names
 OPS_USER="$(echo "$OPS_AGENT_NAME" | tr '[:upper:]' '[:lower:]')"
@@ -227,9 +213,6 @@ for user in "${AGENT_USERS[@]}"; do
     backend_var="AGENT_BACKEND_${backend_key}"
     if [[ -n "${!backend_var:-}" ]]; then
         AGENT_BACKENDS["$user"]="${!backend_var}"
-    elif [[ -z "${NONINTERACTIVE:-}" ]]; then
-        read -rp "Backend for $user [claude/codex] (claude): " _backend
-        AGENT_BACKENDS["$user"]="${_backend:-claude}"
     else
         AGENT_BACKENDS["$user"]="claude"
     fi
@@ -243,37 +226,48 @@ for user in "${AGENT_USERS[@]}"; do
     esac
 done
 
-echo ""
-prompt COMMS_PORT "Comms server port" "$COMMS_PORT"
+# Comms port comes from env (COMMS_PORT) or its default.
 
-# Ask for human names
-echo ""
-if [[ -n "${NONINTERACTIVE:-}" && -n "${HUMAN_NAMES_INPUT:-}" ]]; then
+# Human names (space-separated in HUMAN_NAMES_INPUT)
+if [[ -n "${HUMAN_NAMES_INPUT:-}" ]]; then
     for human_name in $HUMAN_NAMES_INPUT; do
         HUMAN_NAMES+=("$human_name")
     done
-else
-    echo "A human account is needed to access the web UI and send messages."
-    prompt human_name "Your name" ""
-    if [[ -n "$human_name" ]]; then
-        HUMAN_NAMES+=("$human_name")
-    fi
 fi
 if [[ ${#HUMAN_NAMES[@]} -eq 0 ]]; then
-    echo "ERROR: At least one human name is required." >&2
+    echo "ERROR: At least one human name is required (HUMAN_NAMES_INPUT)." >&2
     exit 1
 fi
 
-# Ask for Claude OAuth token upfront (only if Claude agents exist)
+# Validate contract values that flow into shell command strings (`sudo bash
+# -lc`, `su -c`) and other shell-sensitive sinks. A name or port containing
+# a single quote, $, ;, backtick, etc. would otherwise break out of inner
+# quoted positions and execute as the infra user. Rejecting early makes every
+# downstream interpolation safe by construction (the page's HTML pattern is
+# UI-only; the threat model includes tampered blobs and direct env automation).
+for _n in "$OPS_AGENT_NAME" "$COMMS_AGENT_NAME"; do
+    [[ "$_n" =~ ^[A-Za-z][A-Za-z0-9]*$ ]] || {
+        echo "ERROR: Invalid agent name '$_n' (must match [A-Za-z][A-Za-z0-9]*)." >&2
+        exit 1
+    }
+done
+for _h in "${HUMAN_NAMES[@]}"; do
+    [[ "$_h" =~ ^[A-Za-z][A-Za-z0-9._-]*$ ]] || {
+        echo "ERROR: Invalid human name '$_h' (letters/digits/._- only)." >&2
+        exit 1
+    }
+done
+[[ "$COMMS_PORT" =~ ^[0-9]+$ ]] || {
+    echo "ERROR: Invalid COMMS_PORT '$COMMS_PORT' (must be numeric)." >&2
+    exit 1
+}
+
+# Claude OAuth token comes from env (CLAUDE_TOKEN); empty = set up manually later.
 CLAUDE_TOKEN="${CLAUDE_TOKEN:-}"
-if [[ ${#CLAUDE_AGENTS[@]} -gt 0 && -z "$SKIP_CLAUDE_AUTH" && -z "${NONINTERACTIVE:-}" ]]; then
-    echo ""
-    echo "Claude agents need a Claude Code OAuth token to run."
-    echo "If Claude Code is not installed yet, run this first:"
-    echo "  curl -fsSL https://claude.ai/install.sh | bash && export PATH=\"\$HOME/.local/bin:\$PATH\" && claude setup-token"
-    echo "Then paste the token here."
-    read -rp "Claude OAuth token (or Enter to skip): " CLAUDE_TOKEN
-fi
+
+# OpenAI API key powers Telegram/WhatsApp voice AND Codex api-key auth, so it is
+# consumed here independently of any single integration (not gated on Telegram).
+[[ -n "${OPENAI_API_KEY_INPUT:-}" ]] && OPENAI_API_KEY="$OPENAI_API_KEY_INPUT"
 
 # ── Email config (scoped to comms agent) ──
 declare -A EMAIL_FROM
@@ -282,133 +276,56 @@ declare -A EMAIL_SMTP_PASS
 declare -A EMAIL_IMAP_USER
 declare -A EMAIL_IMAP_PASS
 EMAIL_ENABLED=""
-enable_email=""
 EMAIL_PORT="${EMAIL_PORT:-9755}"
-if [[ -z "${NONINTERACTIVE:-}" ]]; then
-    echo ""
-    read -rp "Enable email for $COMMS_AGENT_NAME? [y/N]: " enable_email
-elif [[ -n "${EMAIL_ENABLE:-}" ]]; then
-    enable_email="y"
-fi
-if [[ "${enable_email,,}" =~ ^y ]]; then
-    echo ""
-    echo "  Mail server (same host for SMTP and IMAP):"
-    prompt smtp_host "    SMTP host" ""
-    prompt smtp_port "    SMTP port" "587"
-    prompt imap_host "    IMAP host" "$smtp_host"
-    prompt imap_port "    IMAP port" "993"
-    echo ""
-    echo "  Comms agent email credentials:"
-    read -rp "    Sends as (from address): " from_addr
-    prompt _su "    SMTP user" ""
-    read -rsp "    SMTP password: " _sp; echo ""
-    prompt _iu "    IMAP user" "$_su"
-    read -rsp "    IMAP password (Enter = same as SMTP): " _ip; echo ""
-    [[ -z "$_ip" ]] && _ip="$_sp"
-    EMAIL_FROM[$COMMS_AGENT_NAME]="$from_addr"
-    EMAIL_SMTP_USER[$COMMS_AGENT_NAME]="$_su"
-    EMAIL_SMTP_PASS[$COMMS_AGENT_NAME]="$_sp"
-    EMAIL_IMAP_USER[$COMMS_AGENT_NAME]="$_iu"
-    EMAIL_IMAP_PASS[$COMMS_AGENT_NAME]="$_ip"
-    EMAIL_ENABLED=1
+# Enabled via EMAIL_ENABLE=1 with EMAIL_*_INPUT fields (see fagents.ai/install/).
+# Required fields are validated up-front -- if any are blank, warn and skip so
+# a half-completed config does not abort the whole install (install-email.sh
+# would `exit 1` on a blank SMTP host/user/pass under `set -e`, killing the
+# run after users + comms are already created).
+# IMAP host/user/pass default to the SMTP value when their _INPUT is blank.
+if [[ -n "${EMAIL_ENABLE:-}" ]]; then
+    if [[ -z "${EMAIL_FROM_INPUT:-}" || -z "${EMAIL_SMTP_HOST_INPUT:-}" \
+       || -z "${EMAIL_SMTP_USER_INPUT:-}" || -z "${EMAIL_SMTP_PASS_INPUT:-}" ]]; then
+        log_warn "EMAIL_ENABLE=1 but required fields incomplete (need EMAIL_FROM_INPUT, EMAIL_SMTP_HOST_INPUT, EMAIL_SMTP_USER_INPUT, EMAIL_SMTP_PASS_INPUT) — skipping email setup"
+    else
+        smtp_host="$EMAIL_SMTP_HOST_INPUT"
+        smtp_port="${EMAIL_SMTP_PORT_INPUT:-587}"
+        imap_host="${EMAIL_IMAP_HOST_INPUT:-$smtp_host}"
+        imap_port="${EMAIL_IMAP_PORT_INPUT:-993}"
+        from_addr="$EMAIL_FROM_INPUT"
+        _su="$EMAIL_SMTP_USER_INPUT"
+        _sp="$EMAIL_SMTP_PASS_INPUT"
+        _iu="${EMAIL_IMAP_USER_INPUT:-$_su}"
+        _ip="${EMAIL_IMAP_PASS_INPUT:-$_sp}"
+        EMAIL_FROM[$COMMS_AGENT_NAME]="$from_addr"
+        EMAIL_SMTP_USER[$COMMS_AGENT_NAME]="$_su"
+        EMAIL_SMTP_PASS[$COMMS_AGENT_NAME]="$_sp"
+        EMAIL_IMAP_USER[$COMMS_AGENT_NAME]="$_iu"
+        EMAIL_IMAP_PASS[$COMMS_AGENT_NAME]="$_ip"
+        EMAIL_ENABLED=1
+    fi
 fi
 
 # ── Telegram config (scoped to comms agent) ──
 declare -A TELEGRAM_BOT_TOKEN
 declare -A TELEGRAM_ALLOWED
-enable_telegram=""
-if [[ -z "${NONINTERACTIVE:-}" ]]; then
-    echo ""
-    read -rp "Enable Telegram for $COMMS_AGENT_NAME? [y/N]: " enable_telegram
-elif [[ -n "${TELEGRAM_ENABLE:-}" ]]; then
-    enable_telegram="y"
-fi
-if [[ "${enable_telegram,,}" =~ ^y ]]; then
-    if [[ -n "${NONINTERACTIVE:-}" ]]; then
-        TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]="${TELEGRAM_BOT_TOKEN_INPUT:-}"
-        TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]="${TELEGRAM_ALLOWED_INPUT:-NONE}"
-    else
-        echo ""
-        echo "  Bot token (from BotFather):"
-        read -rp "    Bot token: " _tg_token
-        # Validate token
-        _bot_name=$(curl -sf --max-time 10 "https://api.telegram.org/bot${_tg_token}/getMe" 2>/dev/null | jq -r '.result.username // empty' 2>/dev/null)
-        if [[ -z "$_bot_name" ]]; then
-            log_warn "Bot token invalid or unreachable — skipping Telegram"
-            _tg_token=""
-        else
-            log_ok "Bot verified: @$_bot_name"
-            TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]="$_tg_token"
-            # Generate one-time auth code
-            _auth_code="fagents-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' ')"
-            echo ""
-            echo "  Link your Telegram account:"
-            echo "  1. Open @$_bot_name in Telegram"
-            echo "  2. Send this exact message:  $_auth_code"
-            echo ""
-            read -rp "    Press Enter after sending... "
-            echo "    Waiting for auth code (up to 30s)..."
-            # Single poll — search all messages for the auth code (don't clear first, user may have already sent it)
-            _resp=$(curl -sf --max-time 35 "https://api.telegram.org/bot${_tg_token}/getUpdates?timeout=30" 2>/dev/null) || true
-            _uid=$(echo "${_resp:-}" | jq -r --arg code "$_auth_code" '[.result[].message | select(.text == $code) | .from.id] | first // empty' 2>/dev/null)
-            if [[ -n "$_uid" ]]; then
-                _uname=$(echo "$_resp" | jq -r --arg code "$_auth_code" '[.result[].message | select(.text == $code) | .from.username] | first // empty' 2>/dev/null)
-                TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]="$_uid"
-                log_ok "Verified! Locked to ${_uname:-user} (ID: $_uid)"
-            else
-                TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]="NONE"
-                log_warn "Auth code not received — bot will reject all messages until TELEGRAM_ALLOWED_IDS is set"
-            fi
-        fi
-    fi
-
-    # Optional: OpenAI API key for voice
-    if [[ -z "${NONINTERACTIVE:-}" ]]; then
-        echo ""
-        echo "  Optional: OpenAI API key for voice messages (TTS + Whisper STT)."
-        read -rsp "    OpenAI API key (blank to skip): " _openai_key; echo ""
-        [[ -n "$_openai_key" ]] && OPENAI_API_KEY="$_openai_key"
-    else
-        [[ -n "${OPENAI_API_KEY_INPUT:-}" ]] && OPENAI_API_KEY="$OPENAI_API_KEY_INPUT"
-    fi
+if [[ -n "${TELEGRAM_ENABLE:-}" ]]; then
+    TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]="${TELEGRAM_BOT_TOKEN_INPUT:-}"
+    TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]="${TELEGRAM_ALLOWED_INPUT:-NONE}"
 fi
 
 # ── X (Twitter) config (scoped to comms agent) ──
-enable_x=""
-if [[ -z "${NONINTERACTIVE:-}" ]]; then
-    echo ""
-    read -rp "Enable X (Twitter) for $COMMS_AGENT_NAME? [y/N]: " enable_x
-elif [[ -n "${X_ENABLE:-}" ]]; then
-    enable_x="y"
-fi
-if [[ "${enable_x,,}" =~ ^y ]]; then
-    if [[ -z "${NONINTERACTIVE:-}" ]]; then
-        echo ""
-        echo "  X API credentials (from developer.x.com):"
-        read -rsp "    Bearer token: " X_BEARER_TOKEN; echo ""
-        read -rp  "    Consumer key: " X_CONSUMER_KEY
-        read -rsp "    Consumer secret: " X_CONSUMER_SECRET; echo ""
-        read -rp  "    Access token: " X_ACCESS_TOKEN
-        read -rsp "    Access token secret: " X_ACCESS_TOKEN_SECRET; echo ""
-    else
-        X_BEARER_TOKEN="${X_BEARER_TOKEN_INPUT:-}"
-        X_CONSUMER_KEY="${X_CONSUMER_KEY_INPUT:-}"
-        X_CONSUMER_SECRET="${X_CONSUMER_SECRET_INPUT:-}"
-        X_ACCESS_TOKEN="${X_ACCESS_TOKEN_INPUT:-}"
-        X_ACCESS_TOKEN_SECRET="${X_ACCESS_TOKEN_SECRET_INPUT:-}"
-    fi
+if [[ -n "${X_ENABLE:-}" ]]; then
+    X_BEARER_TOKEN="${X_BEARER_TOKEN_INPUT:-}"
+    X_CONSUMER_KEY="${X_CONSUMER_KEY_INPUT:-}"
+    X_CONSUMER_SECRET="${X_CONSUMER_SECRET_INPUT:-}"
+    X_ACCESS_TOKEN="${X_ACCESS_TOKEN_INPUT:-}"
+    X_ACCESS_TOKEN_SECRET="${X_ACCESS_TOKEN_SECRET_INPUT:-}"
 fi
 
 # ── WhatsApp config (scoped to comms agent) ──
 WHATSAPP_CONFIGURED=""
-enable_whatsapp=""
-if [[ -z "${NONINTERACTIVE:-}" ]]; then
-    echo ""
-    read -rp "Enable WhatsApp for $COMMS_AGENT_NAME? [y/N]: " enable_whatsapp
-elif [[ -n "${WHATSAPP_ENABLE:-}" ]]; then
-    enable_whatsapp="y"
-fi
-if [[ "${enable_whatsapp,,}" =~ ^y ]]; then
+if [[ -n "${WHATSAPP_ENABLE:-}" ]]; then
     # macOS sudo has a restricted PATH — check Homebrew paths explicitly
     if ! command -v node &>/dev/null; then
         for _np in /opt/homebrew/bin/node /usr/local/bin/node; do
@@ -418,20 +335,9 @@ if [[ "${enable_whatsapp,,}" =~ ^y ]]; then
     if ! command -v node &>/dev/null; then
         log_warn "Node.js not found — skipping WhatsApp (install Node.js and re-run)"
     else
-        if [[ -n "${NONINTERACTIVE:-}" ]]; then
-            WHATSAPP_SELF_JID="${WHATSAPP_SELF_JID_INPUT:-}"
-            WHATSAPP_CONFIGURED=1
-        else
-            echo ""
-            echo "  WhatsApp uses a self-chat model: link your WhatsApp account,"
-            echo "  then send messages to yourself via 'Note to self'."
-            echo ""
-            echo "  Step 1: Link your WhatsApp account (scan QR code)"
-            echo "  The QR code will appear after install completes."
-            echo ""
-            read -rp "    Self-chat JID (your number@s.whatsapp.net, or blank to set later): " WHATSAPP_SELF_JID
-            WHATSAPP_CONFIGURED=1
-        fi
+        # Self-chat session is provisioned post-install (QR scan); JID optional now
+        WHATSAPP_SELF_JID="${WHATSAPP_SELF_JID_INPUT:-}"
+        WHATSAPP_CONFIGURED=1
     fi
 fi
 
@@ -440,14 +346,7 @@ NOSTR_CONFIGURED=""
 NOSTR_NSEC_VAL=""
 NOSTR_RELAYS_VAL="wss://relay.damus.io,wss://nos.lol,wss://nostr.wine"
 NOSTR_ALLOWED_NPUBS_VAL=""
-enable_nostr=""
-if [[ -z "${NONINTERACTIVE:-}" ]]; then
-    echo ""
-    read -rp "Enable Nostr DMs (NIP-17) for $COMMS_AGENT_NAME? [y/N]: " enable_nostr
-elif [[ -n "${NOSTR_ENABLE:-}" ]]; then
-    enable_nostr="y"
-fi
-if [[ "${enable_nostr,,}" =~ ^y ]]; then
+if [[ -n "${NOSTR_ENABLE:-}" ]]; then
     if ! command -v node &>/dev/null; then
         for _np in /opt/homebrew/bin/node /usr/local/bin/node; do
             [[ -x "$_np" ]] && export PATH="$(dirname "$_np"):$PATH" && break
@@ -468,28 +367,14 @@ if [[ "${enable_nostr,,}" =~ ^y ]]; then
             log_warn "Node $_node_v too old for Nostr (need >=20.19) -- skipping Nostr"
         fi
     fi
-    if [[ -z "$nostr_node_ok" ]]; then
-        :
-    else
-        if [[ -n "${NONINTERACTIVE:-}" ]]; then
-            agent_upper=$(echo "$COMMS_AGENT_NAME" | tr '[:lower:]' '[:upper:]')
-            nsec_var="NOSTR_NSEC_INPUT_${agent_upper}"
-            NOSTR_NSEC_VAL="${!nsec_var:-}"
-            NOSTR_RELAYS_VAL="${NOSTR_RELAYS_INPUT:-$NOSTR_RELAYS_VAL}"
-            allowed_var="NOSTR_ALLOWED_NPUBS_INPUT_${agent_upper}"
-            NOSTR_ALLOWED_NPUBS_VAL="${!allowed_var:-}"
-            NOSTR_CONFIGURED=1
-        else
-            echo ""
-            echo "  Nostr DMs use NIP-17 sealed sender. You will get an npub to share with"
-            echo "  your contacts. Add their npubs to NOSTR_ALLOWED_NPUBS to receive from them."
-            echo ""
-            read -rp "    Existing nsec1... to import (blank = generate new): " NOSTR_NSEC_VAL
-            read -rp "    Relays (comma-separated) [default: $NOSTR_RELAYS_VAL]: " relay_in
-            [ -n "$relay_in" ] && NOSTR_RELAYS_VAL="$relay_in"
-            read -rp "    Allowed sender npubs (comma-separated, blank to start fail-closed): " NOSTR_ALLOWED_NPUBS_VAL
-            NOSTR_CONFIGURED=1
-        fi
+    if [[ -n "$nostr_node_ok" ]]; then
+        agent_upper=$(echo "$COMMS_AGENT_NAME" | tr '[:lower:]' '[:upper:]')
+        nsec_var="NOSTR_NSEC_INPUT_${agent_upper}"
+        NOSTR_NSEC_VAL="${!nsec_var:-}"
+        NOSTR_RELAYS_VAL="${NOSTR_RELAYS_INPUT:-$NOSTR_RELAYS_VAL}"
+        allowed_var="NOSTR_ALLOWED_NPUBS_INPUT_${agent_upper}"
+        NOSTR_ALLOWED_NPUBS_VAL="${!allowed_var:-}"
+        NOSTR_CONFIGURED=1
     fi
 fi
 
@@ -509,13 +394,6 @@ echo ""
 log_warn " $OPS_AGENT_NAME WILL HAVE SUDO. It can break your system. Mistakes will happen."
 
 echo ""
-if [[ -z "${NONINTERACTIVE:-}" ]]; then
-    read -rp "Proceed? [Y/n] " confirm
-    if [[ "${confirm,,}" == "n" ]]; then
-        echo "Aborted."
-        exit 0
-    fi
-fi
 
 # ── Helpers ──
 agent_user() {
@@ -740,7 +618,11 @@ declare -A AGENT_TOKENS
 declare -A HUMAN_TOKENS
 
 for name in "${AGENT_NAMES[@]}"; do
-    output=$(sudo -Hu"$INFRA_USER" bash -lc "cd ~/workspace/fagents-comms && python3 server.py --data-dir ~/.agents/comms add-agent '$name'" 2>&1) || true
+    # printf %q safely quotes the name for the inner shell of `bash -lc`.
+    # Without it, a name containing a single quote would close the surrounding
+    # '...' and execute arbitrary commands as the infra user.
+    qname=$(printf '%q' "$name")
+    output=$(sudo -Hu"$INFRA_USER" bash -lc "cd ~/workspace/fagents-comms && python3 server.py --data-dir ~/.agents/comms add-agent $qname" 2>&1) || true
     token=$(echo "$output" | grep "^Token: " | cut -d' ' -f2)
     if [[ -n "$token" ]]; then
         AGENT_TOKENS["$name"]="$token"
@@ -752,7 +634,9 @@ for name in "${AGENT_NAMES[@]}"; do
 done
 
 for human in "${HUMAN_NAMES[@]}"; do
-    output=$(sudo -Hu"$INFRA_USER" bash -lc "cd ~/workspace/fagents-comms && python3 server.py --data-dir ~/.agents/comms add-agent '$human'" 2>&1) || true
+    # printf %q safely quotes the human name for the inner shell of `bash -lc`.
+    qhuman=$(printf '%q' "$human")
+    output=$(sudo -Hu"$INFRA_USER" bash -lc "cd ~/workspace/fagents-comms && python3 server.py --data-dir ~/.agents/comms add-agent $qhuman" 2>&1) || true
     token=$(echo "$output" | grep "^Token: " | cut -d' ' -f2)
     if [[ -n "$token" ]]; then
         HUMAN_TOKENS["$human"]="$token"
@@ -941,7 +825,7 @@ done
 rm -f "$INSTALL_SCRIPT"
 
 # Set up DEPLOYLOG check cron for ops agent (daily at 9am)
-OPS_HOME=$(eval echo "~$OPS_USER")
+OPS_HOME=$(lookup_home "$OPS_USER")
 if [[ -d "$SHARED_AUTONOMY_WORKING" ]] && [[ -d "$OPS_HOME/workspace/$OPS_USER" ]]; then
     su - "$OPS_USER" -c "
         PROJECT_DIR=~/workspace/$OPS_USER \
@@ -973,7 +857,7 @@ if [[ -n "$EMAIL_ENABLED" ]]; then
             "${email_agent_args[@]}"
 
         # Add MCP to comms agent's workspace
-        agent_ws="$(eval echo "~$COMMS_USER")/workspace/$COMMS_USER"
+        agent_ws="$(lookup_home "$COMMS_USER")/workspace/$COMMS_USER"
         add_mcp_server "$agent_ws" "$COMMS_USER" "fagents-mcp" "http://127.0.0.1:$EMAIL_PORT/mcp" "${AGENT_TOKENS[$COMMS_AGENT_NAME]:-}"
 
         from_addr="${EMAIL_FROM[$COMMS_AGENT_NAME]:-}"
@@ -1012,7 +896,11 @@ TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN[$COMMS_AGENT_NAME]:-}
 TELEGRAM_ALLOWED_IDS=${TELEGRAM_ALLOWED[$COMMS_AGENT_NAME]:-}
 TGEOF
 
-if [[ -n "$OPENAI_API_KEY" ]]; then
+# Store the OpenAI key in the comms agent's voice credential store ONLY when a
+# voice-capable integration is enabled. A Codex-only key (consumed auth-level
+# above for `codex login`) must not fan out into openai.env, which only voice
+# (Telegram/WhatsApp TTS+STT) reads.
+if [[ -n "$OPENAI_API_KEY" && ( -n "${TELEGRAM_ENABLE:-}" || -n "${WHATSAPP_ENABLE:-}" ) ]]; then
     cat > "$agent_dir/openai.env" <<OAEOF
 OPENAI_API_KEY=$OPENAI_API_KEY
 OAEOF
@@ -1110,12 +998,10 @@ WAEOF
         fi
     fi
 
-    if [[ -z "${NONINTERACTIVE:-}" ]]; then
-        echo ""
-        echo "  To complete WhatsApp setup, run as $COMMS_USER:"
-        echo "    sudo -Hu $INFRA_USER $CLI_DIR/whatsapp.mjs login"
-        echo "  Then scan the QR code with your phone."
-    fi
+    echo ""
+    echo "  To complete WhatsApp setup, run as $COMMS_USER:"
+    echo "    sudo -Hu $INFRA_USER $CLI_DIR/whatsapp.mjs login"
+    echo "  Then scan the QR code with your phone."
 
     log_ok "$COMMS_AGENT_NAME: WhatsApp configured"
 fi
@@ -1213,7 +1099,7 @@ NOSTREOF
         echo "  Your agent's Nostr npub (share this with humans / other agents):"
         echo "    $npub_display"
     fi
-    if [[ -z "$nostr_setup_failed" ]] && [[ -z "${NONINTERACTIVE:-}" ]]; then
+    if [[ -z "$nostr_setup_failed" ]]; then
         echo ""
         echo "  Re-display anytime: sudo -Hu $INFRA_USER $CLI_DIR/nostr.mjs --env-file $agent_dir/nostr.env whoami"
     fi
@@ -1270,19 +1156,17 @@ fi
 
 # Codex agents
 if [[ ${#CODEX_AGENTS[@]} -gt 0 ]]; then
-    # Derive auth mode: explicit > skip flag > noninteractive heuristic > interactive default
+    # Derive auth mode: explicit CODEX_AUTH_MODE > skip flag > OPENAI_API_KEY heuristic.
     if [[ -n "$SKIP_CODEX_AUTH" ]]; then
         CODEX_AUTH_MODE="skip"
     elif [[ -z "${CODEX_AUTH_MODE:-}" ]]; then
-        if [[ -n "${NONINTERACTIVE:-}" ]]; then
-            if [[ -n "${OPENAI_API_KEY:-}" ]]; then
-                CODEX_AUTH_MODE="api-key-login"
-            else
-                log_err "NONINTERACTIVE Codex install requires OPENAI_API_KEY or CODEX_AUTH_MODE=skip"
-                exit 1
-            fi
+        # Installer is non-interactive: derive from OPENAI_API_KEY, else require an
+        # explicit mode (oauth needs a TTY, so it must be opted into deliberately).
+        if [[ -n "${OPENAI_API_KEY:-}" ]]; then
+            CODEX_AUTH_MODE="api-key-login"
         else
-            CODEX_AUTH_MODE="oauth"
+            log_err "Codex install requires OPENAI_API_KEY, or set CODEX_AUTH_MODE (oauth|api-key-login|api-key-env|skip)"
+            exit 1
         fi
     fi
     echo "  Codex agents: ${CODEX_AGENTS[*]}"

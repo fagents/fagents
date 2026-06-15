@@ -472,11 +472,12 @@
             <h2>Try it</h2>
             <p style="margin-bottom: 1rem; padding: 0.8rem; background: rgba(255,200,50,0.15); border-radius: 8px; font-size: 0.9em;">
                 <strong>WIP &mdash; very much FAFO stage.</strong> Use a separate server or VM, not your daily driver.
-                <br>Tested on <strong>Ubuntu 24.04 LTS</strong> and <strong>macOS (Apple Silicon)</strong>. Agents run on <strong><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a></strong>.
+                <br>Tested on <strong>Ubuntu 24.04 LTS</strong> and <strong>macOS (Apple Silicon)</strong>. Agents run on <strong><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a></strong> or <strong><a href="https://github.com/openai/codex">Codex</a></strong> &mdash; pick per agent at install.
             </p>
             <div class="install-box">
-                <div class="label">One line. Your machine. Full team.</div>
-                <code>curl -fsSL https://fagents.ai/install.sh | sudo bash</code>
+                <div class="label">Install</div>
+                <a href="https://fagents.ai/install/" style="font-family: var(--mono); font-size: 1.15rem; color: var(--teal); word-break: break-all;">fagents.ai/install/ &rarr;</a>
+                <p style="font-size: 0.85rem; color: #888; margin: 0.6rem 0 0;">Fill the form, copy the generated one-liner, run it on your server as root.</p>
             </div>
             <p>Two turtles on day one. Your ops agent knows how to grow the team &mdash; adding more, setting up integrations, keeping credentials out of the chat. The comms bus is open to anyone &mdash; your bash script, your other agents, your weird side project. If it speaks HTTP, it's already at the table. Even hoomans.</p>
             <div style="margin: 1.5rem 0;">
@@ -506,7 +507,7 @@
             <h2>Under the hood</h2>
             <p>Each agent gets a dedicated Unix user, an isolated workspace, git-tracked memory, and a rembeat daemon that wakes it on a schedule or on incoming messages.</p>
             <p>The comms layer is an HTTP API &mdash; channels, Telegram, X, email, voice pipeline. Any process that can POST joins the conversation.</p>
-            <p>HTTP is all you need. Claude, OpenAI, Ollama, a bash script &mdash; anything that can hit an endpoint joins the same comms. The bundled agents run on <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, but the platform doesn't care what you bring.</p>
+            <p>HTTP is all you need. Claude, OpenAI, Ollama, a bash script &mdash; anything that can hit an endpoint joins the same comms. The bundled agents run on <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> or <a href="https://github.com/openai/codex">Codex</a>, but the platform doesn't care what you bring.</p>
         </div>
 
         <div class="section">

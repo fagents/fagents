@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>fagents installer — configure</title>
+<style>
+:root {
+    --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    --bg: #0a0a0a;
+    --panel: #141414;
+    --teal: #4ecdc4;
+    --amber: #f4a261;
+    --red: #e76f6f;
+    --muted: #8a8a8a;
+    --line: #2a2a2a;
+    --text: #e8e8e8;
+}
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    margin: 0;
+    padding: 2rem 1rem 5rem;
+}
+.wrap { max-width: 760px; margin: 0 auto; }
+h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
+h1 .t { color: var(--teal); }
+.tagline { color: var(--muted); margin: 0 0 2rem; }
+h2 {
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--teal);
+    margin: 0 0 1rem;
+}
+.steps { color: var(--muted); font-size: 0.9rem; margin: 0 0 2rem; padding-left: 1.2rem; }
+.steps li { margin-bottom: 0.3rem; }
+.card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1.25rem 1.4rem;
+    margin-bottom: 1.25rem;
+}
+fieldset { border: none; margin: 0; padding: 0; }
+legend, .legend {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+.legend .hint { font-weight: 400; color: var(--muted); font-size: 0.82rem; }
+label { display: block; font-size: 0.85rem; color: var(--muted); margin: 0.7rem 0 0.2rem; }
+input[type=text], input[type=password], input[type=number], select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    padding: 0.5rem 0.6rem;
+}
+input:focus, select:focus { outline: none; border-color: var(--teal); }
+input:disabled, select:disabled { opacity: 0.4; }
+.row { display: flex; gap: 1rem; }
+.row > div { flex: 1; }
+.toggle { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+.toggle input { width: auto; }
+.fields[hidden] { display: none; }
+.req::after { content: " *"; color: var(--amber); }
+button {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    font-weight: 600;
+    background: var(--teal);
+    color: var(--bg);
+    border: none;
+    border-radius: 6px;
+    padding: 0.7rem 1.4rem;
+    cursor: pointer;
+}
+button:hover { filter: brightness(1.1); }
+button.secondary { background: transparent; color: var(--teal); border: 1px solid var(--teal); }
+.warn {
+    border: 1px solid var(--red);
+    border-radius: 8px;
+    background: rgba(231, 111, 111, 0.08);
+    padding: 1rem 1.2rem;
+    margin-bottom: 1.25rem;
+}
+.warn strong { color: var(--red); }
+.out { margin-top: 1.5rem; }
+.cmd {
+    background: var(--bg);
+    border: 1px solid var(--teal);
+    border-radius: 6px;
+    padding: 0.9rem 1rem;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    word-break: break-all;
+    white-space: pre-wrap;
+    color: var(--teal);
+}
+.err { color: var(--red); font-size: 0.85rem; margin-top: 0.6rem; }
+.note { color: var(--muted); font-size: 0.8rem; margin-top: 0.4rem; }
+a { color: var(--teal); }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1><span class="t">fagents</span> installer</h1>
+    <p class="tagline">Configure your team here, then run one line on your server.</p>
+
+    <ol class="steps">
+        <li>Fill in the configuration below (only the starred fields are required).</li>
+        <li>Click <em>Generate install command</em>.</li>
+        <li>Copy the one-liner and run it as root on your VPS.</li>
+    </ol>
+
+    <div class="warn">
+        <strong>The generated command carries your secrets.</strong> Bot tokens, API keys
+        and passwords are compressed and base64-encoded into the command &mdash; <em>not</em>
+        encrypted. Paste it only into your own server's terminal. Anyone who sees the command
+        sees your credentials. Nothing you type here leaves your browser; the command is built
+        locally.
+    </div>
+
+    <form id="form" autocomplete="off">
+        <!-- Identity -->
+        <fieldset class="card">
+            <div class="legend">Identity</div>
+            <label class="req" for="humans">Your name(s)</label>
+            <input type="text" id="humans" placeholder="alex  (space-separated for multiple)" required>
+            <p class="note">The humans on the team &mdash; needed to access the web UI and send messages. Space-separated for multiple.</p>
+        </fieldset>
+
+        <!-- Comms server (the chat server everyone connects to) -->
+        <fieldset class="card">
+            <div class="legend">Comms server <span class="hint">&mdash; the chat server everyone uses (humans + agents)</span></div>
+            <label for="comms_port">Port</label>
+            <input type="number" id="comms_port" value="9754">
+            <p class="note">Listens on localhost only. Default <code>9754</code> is fine for a single-server install.</p>
+        </fieldset>
+
+        <h2 style="margin: 1.5rem 0 0.6rem;">Agents</h2>
+        <p class="note" style="margin: -0.4rem 0 1rem;">Two agents to start (ops can add more later). Each gets its own unix user and workspace.</p>
+
+        <!-- Ops agent -->
+        <fieldset class="card" data-agent="ops">
+            <div class="legend">Ops agent <span class="hint">&mdash; infrastructure, sudo, system admin, team management</span></div>
+            <label for="ops_name">Name <span class="hint">(becomes a unix username &mdash; letters and digits only)</span></label>
+            <input type="text" id="ops_name" value="Ops" pattern="[A-Za-z][A-Za-z0-9]*" title="Letters and digits only">
+            <label for="ops_backend" style="margin-top:0.8rem">Backend</label>
+            <select id="ops_backend" data-backend-for="ops"><option value="claude">claude</option><option value="codex">codex</option></select>
+            <!-- Auth — Claude (visible when ops_backend = claude) -->
+            <div class="agent-auth" data-when="ops:claude" hidden style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--line);">
+                <label for="ops_claude_token">Claude OAuth token <span class="hint">(paste an existing token, or click <em>Authorize</em> below)</span></label>
+                <input type="text" autocomplete="off" spellcheck="false" id="ops_claude_token" placeholder="leave blank to set up later">
+                <div style="display: flex; gap: 0.6rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap;">
+                    <button type="button" id="ops_claude_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with Claude &rarr;</button>
+                    <span class="hint" style="font-size: 0.8rem;">no token yet? authorize here</span>
+                </div>
+                <div id="ops_claude_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
+                    <label for="ops_claude_oauth_code" style="margin-top: 0;">Paste the authorization code shown by Anthropic</label>
+                    <input type="text" id="ops_claude_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
+                    <p class="note" id="ops_claude_oauth_status" style="margin-top: 0.3rem;"></p>
+                </div>
+            </div>
+            <!-- Auth — Codex (visible when ops_backend = codex) -->
+            <div class="agent-auth" data-when="ops:codex" hidden style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--line);">
+                <label for="ops_codex_auth_mode">Codex auth mode</label>
+                <select id="ops_codex_auth_mode">
+                    <option value="">(auto: api-key-login if OpenAI key set)</option>
+                    <option value="api-key-login">api-key-login</option>
+                    <option value="api-key-env">api-key-env</option>
+                    <option value="chatgpt-oauth">chatgpt-oauth</option>
+                    <option value="skip">skip</option>
+                </select>
+                <label for="ops_openai_key" style="margin-top:0.8rem">OpenAI API key <span class="hint">(for <code>api-key-login</code> mode) &mdash; <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">create one &rarr;</a></span></label>
+                <input type="text" autocomplete="off" spellcheck="false" id="ops_openai_key" placeholder="sk-... (optional)">
+                <div style="display: flex; gap: 0.6rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap;">
+                    <button type="button" id="ops_openai_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with ChatGPT &rarr;</button>
+                    <span class="hint" style="font-size: 0.8rem;">use your ChatGPT subscription instead</span>
+                </div>
+                <div id="ops_openai_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
+                    <label for="ops_openai_oauth_code" style="margin-top: 0;">Paste the authorization code shown by OpenAI</label>
+                    <input type="text" id="ops_openai_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
+                    <p class="note" id="ops_openai_oauth_status" style="margin-top: 0.3rem;"></p>
+                </div>
+            </div>
+        </fieldset>
+
+        <!-- Comms agent -->
+        <fieldset class="card" data-agent="comms">
+            <div class="legend">Comms agent <span class="hint">&mdash; talks to humans and the outside world (chat, voice, integrations)</span></div>
+            <label for="comms_name">Name <span class="hint">(becomes a unix username &mdash; letters and digits only)</span></label>
+            <input type="text" id="comms_name" value="Comms" pattern="[A-Za-z][A-Za-z0-9]*" title="Letters and digits only">
+            <label for="comms_backend" style="margin-top:0.8rem">Backend</label>
+            <select id="comms_backend" data-backend-for="comms"><option value="claude">claude</option><option value="codex">codex</option></select>
+            <!-- Auth — Claude (visible when comms_backend = claude) -->
+            <div class="agent-auth" data-when="comms:claude" hidden style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--line);">
+                <label for="comms_claude_token">Claude OAuth token <span class="hint">(paste an existing token, or click <em>Authorize</em> below)</span></label>
+                <input type="text" autocomplete="off" spellcheck="false" id="comms_claude_token" placeholder="leave blank to set up later">
+                <div style="display: flex; gap: 0.6rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap;">
+                    <button type="button" id="comms_claude_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with Claude &rarr;</button>
+                    <span class="hint" style="font-size: 0.8rem;">no token yet? authorize here</span>
+                </div>
+                <div id="comms_claude_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
+                    <label for="comms_claude_oauth_code" style="margin-top: 0;">Paste the authorization code shown by Anthropic</label>
+                    <input type="text" id="comms_claude_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
+                    <p class="note" id="comms_claude_oauth_status" style="margin-top: 0.3rem;"></p>
+                </div>
+            </div>
+            <!-- Auth — Codex (visible when comms_backend = codex) -->
+            <div class="agent-auth" data-when="comms:codex" hidden style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--line);">
+                <label for="comms_codex_auth_mode">Codex auth mode</label>
+                <select id="comms_codex_auth_mode">
+                    <option value="">(auto: api-key-login if OpenAI key set)</option>
+                    <option value="api-key-login">api-key-login</option>
+                    <option value="api-key-env">api-key-env</option>
+                    <option value="chatgpt-oauth">chatgpt-oauth</option>
+                    <option value="skip">skip</option>
+                </select>
+                <label for="comms_openai_key" style="margin-top:0.8rem">OpenAI API key <span class="hint">(for <code>api-key-login</code> mode &mdash; the same key powers Telegram/WhatsApp voice below) &mdash; <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">create one &rarr;</a></span></label>
+                <input type="text" autocomplete="off" spellcheck="false" id="comms_openai_key" placeholder="sk-... (optional)">
+                <div style="display: flex; gap: 0.6rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap;">
+                    <button type="button" id="comms_openai_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with ChatGPT &rarr;</button>
+                    <span class="hint" style="font-size: 0.8rem;">use your ChatGPT subscription instead</span>
+                </div>
+                <div id="comms_openai_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
+                    <label for="comms_openai_oauth_code" style="margin-top: 0;">Paste the authorization code shown by OpenAI</label>
+                    <input type="text" id="comms_openai_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
+                    <p class="note" id="comms_openai_oauth_status" style="margin-top: 0.3rem;"></p>
+                </div>
+            </div>
+<h3 style="margin: 1.2rem 0 0.4rem; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--teal);">Integrations</h3>
+            <p class="note" style="margin: 0 0 1rem;">All optional &mdash; how the comms agent reaches humans and the outside world. Toggle on what you want.</p>
+
+            <!-- Telegram -->
+        <fieldset class="card" data-section>
+            <label class="legend toggle"><input type="checkbox" id="telegram_enable" data-toggle="telegram"> Telegram <span class="hint">— bot messaging + voice</span></label>
+            <div class="fields" id="telegram">
+                <label for="tg_token">Bot token <span class="hint">(from @BotFather)</span></label>
+                <input type="text" autocomplete="off" spellcheck="false" id="tg_token">
+                <label for="tg_allowed">Allowed Telegram user ID(s) <span class="hint">(comma-separated)</span></label>
+                <input type="text" id="tg_allowed" placeholder="123456789">
+                <label for="tg_openai_voice_key" style="margin-top:0.6rem">OpenAI API key for voice <span class="hint">(TTS + Whisper STT &mdash; leave blank for no voice; also powers WhatsApp voice if enabled) &mdash; <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">create one &rarr;</a></span></label>
+                <input type="text" autocomplete="off" spellcheck="false" id="tg_openai_voice_key" placeholder="sk-... (optional)">
+            </div>
+        </fieldset>
+
+        <!-- X -->
+        <fieldset class="card" data-section>
+            <label class="legend toggle"><input type="checkbox" id="x_enable" data-toggle="x"> X (Twitter)</label>
+            <div class="fields" id="x">
+                <label for="x_bearer">Bearer token</label>
+                <input type="text" autocomplete="off" spellcheck="false" id="x_bearer">
+                <div class="row">
+                    <div><label for="x_ck">Consumer key</label><input type="text" autocomplete="off" spellcheck="false" id="x_ck"></div>
+                    <div><label for="x_cs">Consumer secret</label><input type="text" autocomplete="off" spellcheck="false" id="x_cs"></div>
+                </div>
+                <div class="row">
+                    <div><label for="x_at">Access token</label><input type="text" autocomplete="off" spellcheck="false" id="x_at"></div>
+                    <div><label for="x_ats">Access token secret</label><input type="text" autocomplete="off" spellcheck="false" id="x_ats"></div>
+                </div>
+            </div>
+        </fieldset>
+
+        <!-- Nostr -->
+        <fieldset class="card" data-section>
+            <label class="legend toggle"><input type="checkbox" id="nostr_enable" data-toggle="nostr"> Nostr DMs <span class="hint">— NIP-17 sealed sender (needs Node &ge;20.19)</span></label>
+            <div class="fields" id="nostr">
+                <label for="nostr_nsec">Existing nsec1… <span class="hint">(blank = generate a new key)</span></label>
+                <input type="text" autocomplete="off" spellcheck="false" id="nostr_nsec" placeholder="nsec1...">
+                <label for="nostr_relays">Relays <span class="hint">(comma-separated)</span></label>
+                <input type="text" id="nostr_relays" value="wss://relay.damus.io,wss://nos.lol,wss://nostr.wine">
+                <label for="nostr_allowed">Allowed sender npubs <span class="hint">(comma-separated; blank = fail-closed)</span></label>
+                <input type="text" id="nostr_allowed" placeholder="npub1...,npub1...">
+            </div>
+        </fieldset>
+
+        <!-- WhatsApp -->
+        <fieldset class="card" data-section>
+            <label class="legend toggle"><input type="checkbox" id="whatsapp_enable" data-toggle="whatsapp"> WhatsApp <span class="hint">— self-chat model (needs Node)</span></label>
+            <div class="fields" id="whatsapp">
+                <label for="wa_jid">Self-chat JID <span class="hint">(your-number@s.whatsapp.net; blank = set later)</span></label>
+                <input type="text" id="wa_jid" placeholder="blank to scan QR after install">
+            </div>
+        </fieldset>
+
+        <!-- Email -->
+        <fieldset class="card" data-section>
+            <label class="legend toggle"><input type="checkbox" id="email_enable" data-toggle="email"> Email <span class="hint">— SMTP send + IMAP receive</span></label>
+            <div class="fields" id="email">
+                <label for="email_from">Sends as (from address)</label>
+                <input type="text" id="email_from" placeholder="agent@example.com">
+                <div class="row">
+                    <div><label for="email_smtp_host">SMTP host</label><input type="text" id="email_smtp_host"></div>
+                    <div><label for="email_smtp_port">SMTP port</label><input type="number" id="email_smtp_port" value="587"></div>
+                </div>
+                <div class="row">
+                    <div><label for="email_smtp_user">SMTP user</label><input type="text" id="email_smtp_user"></div>
+                    <div><label for="email_smtp_pass">SMTP password</label><input type="text" autocomplete="off" spellcheck="false" id="email_smtp_pass"></div>
+                </div>
+                <div class="row">
+                    <div><label for="email_imap_host">IMAP host <span class="hint">(blank = SMTP host)</span></label><input type="text" id="email_imap_host"></div>
+                    <div><label for="email_imap_port">IMAP port</label><input type="number" id="email_imap_port" value="993"></div>
+                </div>
+                <div class="row">
+                    <div><label for="email_imap_user">IMAP user <span class="hint">(blank = SMTP user)</span></label><input type="text" id="email_imap_user"></div>
+                    <div><label for="email_imap_pass">IMAP password <span class="hint">(blank = SMTP password)</span></label><input type="text" autocomplete="off" spellcheck="false" id="email_imap_pass"></div>
+                </div>
+            </div>
+        </fieldset>
+        </fieldset>  <!-- /Comms agent -->
+
+        <button type="submit">Generate install command</button>
+        <div class="err" id="err" hidden></div>
+    </form>
+
+    <div class="out" id="out" hidden>
+        <h2>Run this on your server (as root)</h2>
+        <div class="cmd" id="cmd"></div>
+        <p style="margin-top:0.8rem">
+            <button type="button" class="secondary" id="copy">Copy command</button>
+        </p>
+        <p class="note">Carries your secrets in plaintext. Do not share it.</p>
+    </div>
+</div>
+
+<script>
+"use strict";
+// install.sh URL the one-liner targets. fagents.ai/install/ is the canonical
+// entry point; the script itself is served from fagents.ai/install.sh.
+const INSTALL_URL = "https://fagents.ai/install.sh";
+
+// Match the installer's per-agent env-var suffix. Agent names are constrained
+// to [A-Za-z0-9] (see input pattern), so a plain uppercase is unambiguous and
+// equals the installer's tr '[:lower:]-' '[:upper:]_' / tr '[:lower:]' '[:upper:]'.
+function suffix(name) { return name.trim().toUpperCase(); }
+
+// ── Per-agent OAuth (paste-back) flow for Claude and OpenAI ──
+// Both providers use PKCE with a localhost redirect that won't be reached;
+// each provider has a flag (`code=true` for Claude, `codex_cli_simplified_flow`
+// for OpenAI) that makes their authorize page DISPLAY the code on screen so
+// the user can paste it back here. The code + PKCE verifier ride the blob to
+// the server, which does the exchange (no CORS issue from the server side).
+const CLAUDE_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
+const CLAUDE_SCOPE = 'user:inference';
+const OPENAI_CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
+const OPENAI_CODEX_SCOPE = 'openid profile email offline_access api.connectors.read api.connectors.invoke';
+
+// Per-agent OAuth in-memory state: _oauthState[agent][provider] = { verifier, state }
+const _oauthState = { ops: { claude: null, openai: null }, comms: { claude: null, openai: null } };
+
+function _b64url(bytes) {
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function _pkcePair() {
+    const v = new Uint8Array(32);
+    crypto.getRandomValues(v);
+    const verifier = _b64url(v);
+    const c = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+    return { verifier, challenge: _b64url(c) };
+}
+
+function _setupAgentOauth(agent, provider) {
+    const btn = document.getElementById(`${agent}_${provider}_authorize`);
+    const codeIn = document.getElementById(`${agent}_${provider}_oauth_code`);
+    const pasteWrap = document.getElementById(`${agent}_${provider}_oauth_paste`);
+    const statusEl = document.getElementById(`${agent}_${provider}_oauth_status`);
+    if (!btn || !codeIn || !pasteWrap || !statusEl) return;
+
+    btn.addEventListener('click', async () => {
+        const { verifier, challenge } = await _pkcePair();
+        const stateBytes = new Uint8Array(16);
+        crypto.getRandomValues(stateBytes);
+        const state = _b64url(stateBytes);
+        _oauthState[agent][provider] = { verifier, state };
+        let url, params;
+        if (provider === 'claude') {
+            url = 'https://claude.ai/oauth/authorize?';
+            params = new URLSearchParams({
+                code: 'true',  // shows code on Anthropic's page when the loopback can't be reached
+                client_id: CLAUDE_CLIENT_ID,
+                response_type: 'code',
+                redirect_uri: 'http://localhost:0/callback',
+                scope: CLAUDE_SCOPE,
+                code_challenge: challenge,
+                code_challenge_method: 'S256',
+                state,
+            });
+        } else {
+            url = 'https://auth.openai.com/oauth/authorize?';
+            params = new URLSearchParams({
+                response_type: 'code',
+                client_id: OPENAI_CODEX_CLIENT_ID,
+                redirect_uri: 'http://localhost:0/auth/callback',
+                scope: OPENAI_CODEX_SCOPE,
+                code_challenge: challenge,
+                code_challenge_method: 'S256',
+                id_token_add_organizations: 'true',
+                codex_cli_simplified_flow: 'true',  // same as Claude's code=true
+                state,
+                originator: 'codex_cli_rs',
+            });
+        }
+        window.open(url + params.toString(), '_blank', 'noopener');
+        pasteWrap.hidden = false;
+        codeIn.value = '';
+        codeIn.dataset.code = '';
+        statusEl.textContent = 'opened authorize tab -- approve, then paste the code below.';
+        statusEl.style.color = '';
+    });
+
+    codeIn.addEventListener('input', (e) => {
+        const raw = e.target.value.trim();
+        e.target.dataset.code = '';
+        if (!raw) { statusEl.textContent = ''; statusEl.style.color = ''; return; }
+        // Accept either a bare code OR a full callback URL with ?code=...&state=...
+        let code = raw;
+        let pastedState = null;
+        try {
+            const u = new URL(raw);
+            const c = u.searchParams.get('code');
+            if (c) code = c;
+            pastedState = u.searchParams.get('state');
+        } catch { /* not a URL */ }
+        const st = _oauthState[agent][provider];
+        if (pastedState && st && pastedState !== st.state) {
+            statusEl.textContent = '⚠ state mismatch -- this code is from a different authorize flow';
+            statusEl.style.color = 'var(--red)';
+            return;
+        }
+        if (!st) {
+            statusEl.textContent = '⚠ click Authorize first (the PKCE verifier is generated then)';
+            statusEl.style.color = 'var(--red)';
+            return;
+        }
+        e.target.dataset.code = code;
+        statusEl.textContent = '✓ code captured -- will be exchanged on the server for the long-lived token';
+        statusEl.style.color = 'var(--teal)';
+    });
+}
+
+['ops', 'comms'].forEach(a => ['claude', 'openai'].forEach(p => _setupAgentOauth(a, p)));
+
+// ── Backend-driven visibility ──
+// Each agent's auth subsection (Claude or Codex) shows only when its backend
+// is selected; hidden inputs are disabled so buildConfig never reads them.
+function _applyBackendVisibility(agent) {
+    const backend = document.getElementById(`${agent}_backend`).value;
+    document.querySelectorAll(`.agent-auth[data-when^="${agent}:"]`).forEach(div => {
+        const want = div.dataset.when.split(':')[1];
+        const visible = (want === backend);
+        div.hidden = !visible;
+        div.querySelectorAll('input, select').forEach(el => { el.disabled = !visible; });
+    });
+}
+document.querySelectorAll('[data-backend-for]').forEach(sel => {
+    sel.addEventListener('change', () => _applyBackendVisibility(sel.dataset.backendFor));
+});
+['ops', 'comms'].forEach(_applyBackendVisibility);
+
+// Integration fields stay visible so the user can see what each one needs;
+// the toggle only decides whether buildConfig emits the values (gated on
+// `on('<integration>_enable')`).
+
+function buildConfig() {
+    const v = id => (document.getElementById(id).value || '').trim();
+    const on = id => document.getElementById(id).checked;
+    const cfg = {};
+
+    const humans = v('humans');
+    const ops = v('ops_name') || 'Ops';
+    const comms = v('comms_name') || 'Comms';
+    cfg.HUMAN_NAMES_INPUT = humans;
+    cfg.OPS_AGENT_NAME = ops;
+    cfg.COMMS_AGENT_NAME = comms;
+    if (v('comms_port')) cfg.COMMS_PORT = v('comms_port');
+
+    const opsBackend = v('ops_backend');
+    const commsBackend = v('comms_backend');
+    cfg['AGENT_BACKEND_' + suffix(ops)] = opsBackend;
+    cfg['AGENT_BACKEND_' + suffix(comms)] = commsBackend;
+
+    // Auth is per-agent in the UI but env vars are shared, so we collect from
+    // each agent that selected the matching backend and prefer comms when both
+    // would set the same key (last-wins on the install side either way).
+    const dataCode = id => (document.getElementById(id)?.dataset.code || '').trim();
+    const claudeAgents = ['comms', 'ops'].filter(a => (a === 'comms' ? commsBackend : opsBackend) === 'claude');
+    const codexAgents  = ['comms', 'ops'].filter(a => (a === 'comms' ? commsBackend : opsBackend) === 'codex');
+
+    // Claude auth: OAuth paste-back wins over manual token; iterate comms-first.
+    for (const a of claudeAgents) {
+        const code = dataCode(`${a}_claude_oauth_code`);
+        if (code && _oauthState[a].claude) {
+            cfg.CLAUDE_OAUTH_CODE = code;
+            cfg.CLAUDE_OAUTH_VERIFIER = _oauthState[a].claude.verifier;
+            break;
+        }
+        const tok = v(`${a}_claude_token`);
+        if (tok) { cfg.CLAUDE_TOKEN = tok; break; }
+    }
+    // Codex auth mode + OpenAI key (api-key-login) + OpenAI OAuth.
+    for (const a of codexAgents) {
+        const mode = v(`${a}_codex_auth_mode`);
+        if (mode && !cfg.CODEX_AUTH_MODE) cfg.CODEX_AUTH_MODE = mode;
+        const code = dataCode(`${a}_openai_oauth_code`);
+        if (code && _oauthState[a].openai && !cfg.OPENAI_OAUTH_CODE) {
+            cfg.OPENAI_OAUTH_CODE = code;
+            cfg.OPENAI_OAUTH_VERIFIER = _oauthState[a].openai.verifier;
+            if (!cfg.CODEX_AUTH_MODE) cfg.CODEX_AUTH_MODE = 'chatgpt-oauth';
+        }
+        const key = v(`${a}_openai_key`);
+        if (key && !cfg.OPENAI_API_KEY_INPUT) cfg.OPENAI_API_KEY_INPUT = key;
+    }
+    // Voice OpenAI key: presence of the key is what enables TTS/STT for Telegram
+    // and WhatsApp. The installer's per-integration gate decides where it lands.
+    if (!cfg.OPENAI_API_KEY_INPUT) {
+        const voiceKey = v('tg_openai_voice_key');
+        if (voiceKey) cfg.OPENAI_API_KEY_INPUT = voiceKey;
+    }
+
+    if (on('telegram_enable')) {
+        cfg.TELEGRAM_ENABLE = '1';
+        if (v('tg_token')) cfg.TELEGRAM_BOT_TOKEN_INPUT = v('tg_token');
+        if (v('tg_allowed')) cfg.TELEGRAM_ALLOWED_INPUT = v('tg_allowed');
+    }
+    if (on('x_enable')) {
+        cfg.X_ENABLE = '1';
+        if (v('x_bearer')) cfg.X_BEARER_TOKEN_INPUT = v('x_bearer');
+        if (v('x_ck')) cfg.X_CONSUMER_KEY_INPUT = v('x_ck');
+        if (v('x_cs')) cfg.X_CONSUMER_SECRET_INPUT = v('x_cs');
+        if (v('x_at')) cfg.X_ACCESS_TOKEN_INPUT = v('x_at');
+        if (v('x_ats')) cfg.X_ACCESS_TOKEN_SECRET_INPUT = v('x_ats');
+    }
+    if (on('nostr_enable')) {
+        cfg.NOSTR_ENABLE = '1';
+        if (v('nostr_relays')) cfg.NOSTR_RELAYS_INPUT = v('nostr_relays');
+        if (v('nostr_nsec')) cfg['NOSTR_NSEC_INPUT_' + suffix(comms)] = v('nostr_nsec');
+        if (v('nostr_allowed')) cfg['NOSTR_ALLOWED_NPUBS_INPUT_' + suffix(comms)] = v('nostr_allowed');
+    }
+    if (on('whatsapp_enable')) {
+        cfg.WHATSAPP_ENABLE = '1';
+        if (v('wa_jid')) cfg.WHATSAPP_SELF_JID_INPUT = v('wa_jid');
+    }
+    if (on('email_enable')) {
+        cfg.EMAIL_ENABLE = '1';
+        if (v('email_from')) cfg.EMAIL_FROM_INPUT = v('email_from');
+        if (v('email_smtp_host')) cfg.EMAIL_SMTP_HOST_INPUT = v('email_smtp_host');
+        if (v('email_smtp_port')) cfg.EMAIL_SMTP_PORT_INPUT = v('email_smtp_port');
+        if (v('email_smtp_user')) cfg.EMAIL_SMTP_USER_INPUT = v('email_smtp_user');
+        if (v('email_smtp_pass')) cfg.EMAIL_SMTP_PASS_INPUT = v('email_smtp_pass');
+        if (v('email_imap_host')) cfg.EMAIL_IMAP_HOST_INPUT = v('email_imap_host');
+        if (v('email_imap_port')) cfg.EMAIL_IMAP_PORT_INPUT = v('email_imap_port');
+        if (v('email_imap_user')) cfg.EMAIL_IMAP_USER_INPUT = v('email_imap_user');
+        if (v('email_imap_pass')) cfg.EMAIL_IMAP_PASS_INPUT = v('email_imap_pass');
+    }
+    return cfg;
+}
+
+// base64( gzip( JSON ) ) — the installer decodes with: base64 -d | gunzip | jq
+async function makeBlob(cfg) {
+    const json = JSON.stringify(cfg);
+    const cs = new CompressionStream('gzip');
+    const writer = cs.writable.getWriter();
+    writer.write(new TextEncoder().encode(json));
+    writer.close();
+    const buf = await new Response(cs.readable).arrayBuffer();
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+}
+
+const form = document.getElementById('form');
+const errBox = document.getElementById('err');
+const outBox = document.getElementById('out');
+const cmdBox = document.getElementById('cmd');
+
+form.addEventListener('submit', async e => {
+    e.preventDefault();
+    errBox.hidden = true;
+    if (!form.reportValidity()) return;
+    if (typeof CompressionStream === 'undefined') {
+        errBox.textContent = "Your browser lacks CompressionStream. Use a recent Chrome, Safari 16.4+, or Firefox 113+.";
+        errBox.hidden = false;
+        return;
+    }
+    try {
+        const blob = await makeBlob(buildConfig());
+        cmdBox.textContent = "curl -fsSL " + INSTALL_URL + " | sudo bash -s -- " + blob;
+        outBox.hidden = false;
+        outBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (ex) {
+        errBox.textContent = "Could not build the command: " + ex.message;
+        errBox.hidden = false;
+    }
+});
+
+document.getElementById('copy').addEventListener('click', async () => {
+    const btn = document.getElementById('copy');
+    try {
+        await navigator.clipboard.writeText(cmdBox.textContent);
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = 'Copy command'; }, 1500);
+    } catch {
+        const r = document.createRange();
+        r.selectNodeContents(cmdBox);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+    }
+});
+</script>
+</body>
+</html>
