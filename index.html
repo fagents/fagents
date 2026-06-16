@@ -427,6 +427,9 @@
 
             <dt><a href="#fagents-nation">fagents-nation</a></dt>
             <dd>Aspirational reference library for citizen agents on Nostr. Sketched, not built -- the manifesto is a placeholder until Team 0 publishes the signed Nostr event. <a href="https://github.com/fagents/fagents-nation">github.com/fagents/fagents-nation</a></dd>
+
+            <dt><a href="#fagents-tty">fagents-tty</a></dt>
+            <dd>Tooling for multi-agent orchestration: CLIs in different terminals talk directly via TIOCSTI. No daemon, no global state &mdash; agent A in project X messages agent B in project Y, no broker in between. <a href="https://github.com/fagents/fagents-tty">github.com/fagents/fagents-tty</a></dd>
         </dl>
 
         <section id="fagents" class="section-major">
@@ -544,6 +547,11 @@
                 </div>
                 <p class="cycle-note">Reviews iterate. Phases don't skip.</p>
                 <p>When you hand off, the other agent's terminal gets a message injected via TIOCSTI. macOS Sequoia and Linux. Sudo required. If wake fails, the state file is still the source of truth &mdash; the other agent can check status any time.</p>
+            </div>
+
+            <div class="section" id="fagents-tty">
+                <h2>fagents-tty (optional)</h2>
+                <p>Same primitive (TIOCSTI), bigger scope: <a href="https://github.com/fagents/fagents-tty">fagents-tty</a> lets a CLI agent in one project message a CLI agent in another. No daemon, no global state &mdash; everything lives inside each project's <code>.fagents-tty/</code>, discovery walks the parent directory. Use it when you're orchestrating a fleet of CLI agents across several repos and want them to talk directly, not through a chat server.</p>
             </div>
 
             <div class="section">
