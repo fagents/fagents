@@ -1244,6 +1244,11 @@ if [[ ${#CODEX_AGENTS[@]} -gt 0 ]]; then
         agent_ws="$agent_home/workspace/$user"
         codex_home="$agent_home/.codex"
 
+        # codex CLI errors out with "CODEX_HOME points to ... but that path
+        # does not exist" if the dir is missing -- create as the agent user
+        # so ownership/permissions are right.
+        su - "$user" -c "mkdir -p '$codex_home' && chmod 700 '$codex_home'"
+
         case "$CODEX_AUTH_MODE" in
             oauth)
                 echo "  $user: Codex login (device auth)..."
