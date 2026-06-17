@@ -93,7 +93,7 @@ ALLOWED_STATIC="HUMAN_NAMES_INPUT OPS_AGENT_NAME COMMS_AGENT_NAME COMMS_PORT \
   TELEGRAM_ENABLE TELEGRAM_BOT_TOKEN_INPUT TELEGRAM_ALLOWED_INPUT \
   X_ENABLE X_BEARER_TOKEN_INPUT X_CONSUMER_KEY_INPUT X_CONSUMER_SECRET_INPUT \
   X_ACCESS_TOKEN_INPUT X_ACCESS_TOKEN_SECRET_INPUT \
-  OPENAI_API_KEY_INPUT OPENAI_OAUTH_CODE OPENAI_OAUTH_VERIFIER \
+  OPENAI_API_KEY_INPUT \
   NOSTR_ENABLE NOSTR_RELAYS_INPUT \
   WHATSAPP_ENABLE WHATSAPP_SELF_JID_INPUT \
   EMAIL_ENABLE EMAIL_FROM_INPUT EMAIL_SMTP_HOST_INPUT EMAIL_SMTP_PORT_INPUT \
@@ -123,6 +123,21 @@ if [[ -n "${1:-}" && "${1:0:1}" != "-" ]]; then
         fi
     done < <(printf '%s' "$_json" | jq -r 'keys[]')
     export NONINTERACTIVE=1
+fi
+
+# Codex ChatGPT device-auth preflight notice: if the user picked the
+# `oauth` Codex mode on the page, the install will block partway through
+# waiting for the user to visit a verification URL in a separate browser.
+# Surface that NOW (before clone / sudo work, and -- intentionally --
+# before the FAGENTS_INSTALL_DRYRUN exit below so the test seam covers it)
+# so a user who already pasted-and-ran has a chance to react.
+if [[ "${CODEX_AUTH_MODE:-}" == "oauth" ]]; then
+    echo ""
+    echo "NOTE: Codex ChatGPT login is selected. During install you will see a"
+    echo "      verification URL + one-time code; open the URL in any browser,"
+    echo "      sign in, then return to this terminal. Do NOT close this"
+    echo "      terminal until install finishes."
+    echo ""
 fi
 
 # Test seam (unit tests only, never set in production): after the blob is

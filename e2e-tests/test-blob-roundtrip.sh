@@ -45,6 +45,27 @@ reject "$OUT" '^PATH=.*/evil'                 "PATH not clobbered by blob"
 reject "$OUT" '^AGENT_BACKEND_BAD'            "metachar dynamic key rejected (bad suffix)"
 expect "$OUT" 'ignoring unrecognized config key' "shim warns on non-allowlisted keys"
 
+# --- 2b. Dropped allowlist entries stay dropped (regression guard) ---
+# OPENAI_OAUTH_CODE/_VERIFIER used to be allowlisted (Anthropic-style paste-back
+# that the installer never consumed); removed because Codex's OAuth doesn't
+# support paste-back. Verify they now hit the "unrecognized key" path.
+DEAD='{"OPENAI_OAUTH_CODE":"abc","OPENAI_OAUTH_VERIFIER":"def","COMMS_PORT":"7777"}'
+OUT="$(dryrun "$(blob "$DEAD")")"
+reject "$OUT" '^OPENAI_OAUTH_CODE='     "OPENAI_OAUTH_CODE removed from allowlist (not exported)"
+reject "$OUT" '^OPENAI_OAUTH_VERIFIER=' "OPENAI_OAUTH_VERIFIER removed from allowlist (not exported)"
+
+# --- 2c. CODEX_AUTH_MODE=oauth triggers the preflight notice ---
+# Placed BEFORE the FAGENTS_INSTALL_DRYRUN exit so the existing test seam
+# captures it; users who already pasted-and-ran see it on their terminal.
+OAUTH='{"CODEX_AUTH_MODE":"oauth","COMMS_PORT":"7754"}'
+OUT="$(dryrun "$(blob "$OAUTH")")"
+expect "$OUT" 'verification URL'                       "preflight notice mentions the verification URL"
+expect "$OUT" 'Do NOT close this'                      "preflight notice tells the user to stay at the terminal"
+# Conversely: when CODEX_AUTH_MODE is NOT oauth, the notice does NOT fire.
+SKIP='{"CODEX_AUTH_MODE":"skip","COMMS_PORT":"7754"}'
+OUT="$(dryrun "$(blob "$SKIP")")"
+reject "$OUT" 'verification URL'                       "preflight notice silent when CODEX_AUTH_MODE != oauth"
+
 # --- 3. Legacy options: a leading '-' is NOT decoded as a blob, and "$@" forwards ---
 OUT="$(NONINTERACTIVE=1 FAGENTS_INSTALL_DRYRUN=1 bash "$INSTALL_SH" --skip-claude-auth --comms-port 9754 2>&1)"
 reject "$OUT" 'could not decode'                          "leading-dash arg not decoded as a blob"

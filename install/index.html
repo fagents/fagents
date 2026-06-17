@@ -179,11 +179,12 @@ a { color: var(--teal); }
                     <option value="">(not configured)</option>
                     <option value="api-key-login">Paste OpenAI API key (codex login)</option>
                     <option value="api-key-env">Paste OpenAI API key (stored in agent .env)</option>
-                    <option value="oauth">Device login (interactive at install time)</option>
+                    <option value="oauth">ChatGPT device login &mdash; the install will print a verification URL</option>
                     <option value="skip">Skip &mdash; I'll set up after install</option>
                 </select>
                 <label id="openai_key_label" for="openai_key" style="margin-top: 0.5rem;" hidden>OpenAI API key <span class="hint">&mdash; <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">create one &rarr;</a></span></label>
                 <input type="text" autocomplete="off" spellcheck="false" id="openai_key" placeholder="sk-..." hidden>
+                <p class="note" id="codex_oauth_hint" hidden style="margin-top: 0.5rem; font-size: 0.85rem; color: #888;">The install command prints a one-time URL and a code. Open the URL in any browser, sign in with your ChatGPT account, then return to this terminal so codex can finish. Stay at the terminal until install completes.</p>
             </div>
         </fieldset>
 
@@ -522,6 +523,8 @@ document.getElementById('codex_auth_mode').addEventListener('change', () => {
     const needsKey = (mode === 'api-key-login' || mode === 'api-key-env');
     document.getElementById('openai_key_label').hidden = !needsKey;
     document.getElementById('openai_key').hidden = !needsKey;
+    // Show the device-auth heads-up paragraph only when oauth is selected.
+    document.getElementById('codex_oauth_hint').hidden = (mode !== 'oauth');
     _recomputeBackends();
 });
 document.getElementById('openai_key').addEventListener('input', _recomputeBackends);
