@@ -149,6 +149,44 @@ a { color: var(--teal); }
             <p class="note">Listens on localhost only. Default <code>9754</code> is fine for a single-server install.</p>
         </fieldset>
 
+        <!-- Auth a CLI backend once; agent backend dropdowns below filter to whatever is authorized.
+             Single source of credentials -- all agents using the same backend share the same auth. -->
+        <fieldset class="card" id="auth_section">
+            <div class="legend">Authorize a CLI backend <span class="hint">&mdash; pick either or both</span></div>
+
+            <!-- Claude row -->
+            <div data-auth-row="claude" style="margin-top: 0.4rem;">
+                <strong>Claude Code</strong>
+                <span class="hint">(Anthropic; uses your claude.ai Pro/Max subscription)</span>
+                <div style="margin-top: 0.5rem;">
+                    <button type="button" id="claude_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with Claude &rarr;</button>
+                </div>
+                <p class="note" style="margin-top: 0.4rem; margin-bottom: 0.2rem;">Authorize here, or:</p>
+                <label style="display: block;"><input type="checkbox" id="claude_skip"> Set up later &mdash; the installer will install Claude Code; I'll run <code>claude setup-token</code> on the server after.</label>
+                <div id="claude_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
+                    <label for="claude_oauth_code" style="margin-top: 0;">Paste the authorization code shown by Anthropic</label>
+                    <input type="text" id="claude_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
+                    <p class="note" id="claude_oauth_status" style="margin-top: 0.3rem;"></p>
+                </div>
+            </div>
+
+            <!-- Codex row -->
+            <div data-auth-row="codex" style="margin-top: 1.1rem; padding-top: 1rem; border-top: 1px dashed var(--line);">
+                <strong>Codex CLI</strong>
+                <span class="hint">(OpenAI)</span>
+                <label for="codex_auth_mode" style="margin-top: 0.4rem;">Auth mode</label>
+                <select id="codex_auth_mode">
+                    <option value="">(not configured)</option>
+                    <option value="api-key-login">Paste OpenAI API key (codex login)</option>
+                    <option value="api-key-env">Paste OpenAI API key (stored in agent .env)</option>
+                    <option value="oauth">Device login (interactive at install time)</option>
+                    <option value="skip">Skip &mdash; I'll set up after install</option>
+                </select>
+                <label id="openai_key_label" for="openai_key" style="margin-top: 0.5rem;" hidden>OpenAI API key <span class="hint">&mdash; <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">create one &rarr;</a></span></label>
+                <input type="text" autocomplete="off" spellcheck="false" id="openai_key" placeholder="sk-..." hidden>
+            </div>
+        </fieldset>
+
         <h2 style="margin: 1.5rem 0 0.6rem;">Agents</h2>
         <p class="note" style="margin: -0.4rem 0 1rem;">Two agents to start (ops can add more later). Each gets its own unix user and workspace.</p>
 
@@ -158,39 +196,7 @@ a { color: var(--teal); }
             <label for="ops_name">Name <span class="hint">(becomes a unix username &mdash; letters and digits only)</span></label>
             <input type="text" id="ops_name" value="Ops" pattern="[A-Za-z][A-Za-z0-9]*" title="Letters and digits only">
             <label for="ops_backend" style="margin-top:0.8rem">Backend</label>
-            <select id="ops_backend" data-backend-for="ops"><option value="claude">claude</option><option value="codex">codex</option></select>
-            <!-- Auth — Claude (visible when ops_backend = claude) -->
-            <div class="agent-auth" data-when="ops:claude" hidden style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--line);">
-                <button type="button" id="ops_claude_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with Claude &rarr;</button>
-                <p class="note" style="margin-top: 0.5rem; font-size: 0.8rem; color: #888;">If <em>Authorize</em> doesn't work, run <code>sudo -u ops claude setup-token</code> on your server after install &mdash; same persistent token, manual paste.</p>
-                <div id="ops_claude_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
-                    <label for="ops_claude_oauth_code" style="margin-top: 0;">Paste the authorization code shown by Anthropic</label>
-                    <input type="text" id="ops_claude_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
-                    <p class="note" id="ops_claude_oauth_status" style="margin-top: 0.3rem;"></p>
-                </div>
-            </div>
-            <!-- Auth — Codex (visible when ops_backend = codex) -->
-            <div class="agent-auth" data-when="ops:codex" hidden style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--line);">
-                <label for="ops_codex_auth_mode">Codex auth mode</label>
-                <select id="ops_codex_auth_mode">
-                    <option value="">(auto: api-key-login if OpenAI key set)</option>
-                    <option value="api-key-login">api-key-login</option>
-                    <option value="api-key-env">api-key-env</option>
-                    <option value="chatgpt-oauth">chatgpt-oauth</option>
-                    <option value="skip">skip</option>
-                </select>
-                <label for="ops_openai_key" style="margin-top:0.8rem">OpenAI API key <span class="hint">(for <code>api-key-login</code> mode) &mdash; <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">create one &rarr;</a></span></label>
-                <input type="text" autocomplete="off" spellcheck="false" id="ops_openai_key" placeholder="sk-... (optional)">
-                <div style="display: flex; gap: 0.6rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap;">
-                    <button type="button" id="ops_openai_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with ChatGPT &rarr;</button>
-                    <span class="hint" style="font-size: 0.8rem;">use your ChatGPT subscription instead</span>
-                </div>
-                <div id="ops_openai_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
-                    <label for="ops_openai_oauth_code" style="margin-top: 0;">Paste the authorization code shown by OpenAI</label>
-                    <input type="text" id="ops_openai_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
-                    <p class="note" id="ops_openai_oauth_status" style="margin-top: 0.3rem;"></p>
-                </div>
-            </div>
+            <select id="ops_backend" required></select>
         </fieldset>
 
         <!-- Comms agent -->
@@ -199,39 +205,7 @@ a { color: var(--teal); }
             <label for="comms_name">Name <span class="hint">(becomes a unix username &mdash; letters and digits only)</span></label>
             <input type="text" id="comms_name" value="Comms" pattern="[A-Za-z][A-Za-z0-9]*" title="Letters and digits only">
             <label for="comms_backend" style="margin-top:0.8rem">Backend</label>
-            <select id="comms_backend" data-backend-for="comms"><option value="claude">claude</option><option value="codex">codex</option></select>
-            <!-- Auth — Claude (visible when comms_backend = claude) -->
-            <div class="agent-auth" data-when="comms:claude" hidden style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--line);">
-                <button type="button" id="comms_claude_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with Claude &rarr;</button>
-                <p class="note" style="margin-top: 0.5rem; font-size: 0.8rem; color: #888;">If <em>Authorize</em> doesn't work, run <code>sudo -u comms claude setup-token</code> on your server after install &mdash; same persistent token, manual paste.</p>
-                <div id="comms_claude_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
-                    <label for="comms_claude_oauth_code" style="margin-top: 0;">Paste the authorization code shown by Anthropic</label>
-                    <input type="text" id="comms_claude_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
-                    <p class="note" id="comms_claude_oauth_status" style="margin-top: 0.3rem;"></p>
-                </div>
-            </div>
-            <!-- Auth — Codex (visible when comms_backend = codex) -->
-            <div class="agent-auth" data-when="comms:codex" hidden style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--line);">
-                <label for="comms_codex_auth_mode">Codex auth mode</label>
-                <select id="comms_codex_auth_mode">
-                    <option value="">(auto: api-key-login if OpenAI key set)</option>
-                    <option value="api-key-login">api-key-login</option>
-                    <option value="api-key-env">api-key-env</option>
-                    <option value="chatgpt-oauth">chatgpt-oauth</option>
-                    <option value="skip">skip</option>
-                </select>
-                <label for="comms_openai_key" style="margin-top:0.8rem">OpenAI API key <span class="hint">(for <code>api-key-login</code> mode &mdash; the same key powers Telegram/WhatsApp voice below) &mdash; <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">create one &rarr;</a></span></label>
-                <input type="text" autocomplete="off" spellcheck="false" id="comms_openai_key" placeholder="sk-... (optional)">
-                <div style="display: flex; gap: 0.6rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap;">
-                    <button type="button" id="comms_openai_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with ChatGPT &rarr;</button>
-                    <span class="hint" style="font-size: 0.8rem;">use your ChatGPT subscription instead</span>
-                </div>
-                <div id="comms_openai_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
-                    <label for="comms_openai_oauth_code" style="margin-top: 0;">Paste the authorization code shown by OpenAI</label>
-                    <input type="text" id="comms_openai_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
-                    <p class="note" id="comms_openai_oauth_status" style="margin-top: 0.3rem;"></p>
-                </div>
-            </div>
+            <select id="comms_backend" required></select>
 <h3 style="margin: 1.2rem 0 0.4rem; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--teal);">Integrations</h3>
             <p class="note" style="margin: 0 0 1rem;">All optional &mdash; how the comms agent reaches humans and the outside world. Toggle on what you want.</p>
 
@@ -364,11 +338,12 @@ const CLAUDE_MANUAL_REDIRECT_URL = 'https://platform.claude.com/oauth/code/callb
 // format" from Anthropic when the user clicks Authorize on the consent page,
 // confirmed via Playwright + a verbatim working URL from Kai's CLI.
 const CLAUDE_SCOPE = 'user:inference';
-const OPENAI_CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
-const OPENAI_CODEX_SCOPE = 'openid profile email offline_access api.connectors.read api.connectors.invoke';
 
-// Per-agent OAuth in-memory state: _oauthState[agent][provider] = { verifier, state }
-const _oauthState = { ops: { claude: null, openai: null }, comms: { claude: null, openai: null } };
+// One slot per provider. Claude is the only provider with a paste-back flow on
+// this page today; OpenAI Codex's chatgpt-oauth flow is not yet supported by
+// the installer (no OPENAI_OAUTH_CODE/_VERIFIER consumer in install-team*.sh)
+// so the page no longer drives it.
+const _oauthState = { claude: null };
 
 function _b64url(bytes) {
     let bin = '';
@@ -383,12 +358,11 @@ async function _pkcePair() {
     return { verifier, challenge: _b64url(c) };
 }
 
-function _setupAgentOauth(agent, provider) {
-    const btn = document.getElementById(`${agent}_${provider}_authorize`);
-    const codeIn = document.getElementById(`${agent}_${provider}_oauth_code`);
-    const pasteWrap = document.getElementById(`${agent}_${provider}_oauth_paste`);
-    const statusEl = document.getElementById(`${agent}_${provider}_oauth_status`);
-    if (!btn || !codeIn || !pasteWrap || !statusEl) return;
+function _setupClaudeOauth() {
+    const btn = document.getElementById('claude_authorize');
+    const codeIn = document.getElementById('claude_oauth_code');
+    const pasteWrap = document.getElementById('claude_oauth_paste');
+    const statusEl = document.getElementById('claude_oauth_status');
 
     btn.addEventListener('click', async () => {
         const { verifier, challenge } = await _pkcePair();
@@ -398,48 +372,37 @@ function _setupAgentOauth(agent, provider) {
         const stateBytes = new Uint8Array(32);
         crypto.getRandomValues(stateBytes);
         const state = _b64url(stateBytes);
-        _oauthState[agent][provider] = { verifier, state };
-        let url, params;
-        if (provider === 'claude') {
-            url = CLAUDE_AUTHORIZE_URL + '?';
-            params = new URLSearchParams({
-                code: 'true',  // shows code on Anthropic's page when the loopback can't be reached
-                client_id: CLAUDE_CLIENT_ID,
-                response_type: 'code',
-                redirect_uri: CLAUDE_MANUAL_REDIRECT_URL,
-                scope: CLAUDE_SCOPE,
-                code_challenge: challenge,
-                code_challenge_method: 'S256',
-                state,
-            });
-        } else {
-            url = 'https://auth.openai.com/oauth/authorize?';
-            params = new URLSearchParams({
-                response_type: 'code',
-                client_id: OPENAI_CODEX_CLIENT_ID,
-                redirect_uri: 'http://localhost:0/auth/callback',
-                scope: OPENAI_CODEX_SCOPE,
-                code_challenge: challenge,
-                code_challenge_method: 'S256',
-                id_token_add_organizations: 'true',
-                codex_cli_simplified_flow: 'true',  // same as Claude's code=true
-                state,
-                originator: 'codex_cli_rs',
-            });
-        }
-        window.open(url + params.toString(), '_blank', 'noopener');
+        _oauthState.claude = { verifier, state };
+        const params = new URLSearchParams({
+            code: 'true',  // shows code on Anthropic's page when the loopback can't be reached
+            client_id: CLAUDE_CLIENT_ID,
+            response_type: 'code',
+            redirect_uri: CLAUDE_MANUAL_REDIRECT_URL,
+            scope: CLAUDE_SCOPE,
+            code_challenge: challenge,
+            code_challenge_method: 'S256',
+            state,
+        });
+        window.open(CLAUDE_AUTHORIZE_URL + '?' + params.toString(), '_blank', 'noopener');
         pasteWrap.hidden = false;
         codeIn.value = '';
         codeIn.dataset.code = '';
         statusEl.textContent = 'opened authorize tab -- approve, then paste the code below.';
         statusEl.style.color = '';
+        _recomputeBackends();
     });
 
     codeIn.addEventListener('input', (e) => {
         const raw = e.target.value.trim();
         e.target.dataset.code = '';
-        if (!raw) { statusEl.textContent = ''; statusEl.style.color = ''; return; }
-        // Accept either a bare code OR a full callback URL with ?code=...&state=...
+        if (!raw) { statusEl.textContent = ''; statusEl.style.color = ''; _recomputeBackends(); return; }
+        // Accept three paste forms:
+        //   1. bare `code` (rare; loses state validation)
+        //   2. `code#state` as shown by Anthropic's "Copy Code" button
+        //   3. the full callback URL `https://.../callback?code=...&state=...`
+        // install-team.sh splits CLAUDE_OAUTH_CODE on `#` to recover the state
+        // for the server-side token exchange, so we must STORE the `code#state`
+        // form -- not the bare code.
         let code = raw;
         let pastedState = null;
         try {
@@ -447,42 +410,123 @@ function _setupAgentOauth(agent, provider) {
             const c = u.searchParams.get('code');
             if (c) code = c;
             pastedState = u.searchParams.get('state');
-        } catch { /* not a URL */ }
-        const st = _oauthState[agent][provider];
+        } catch {
+            // Not a URL -- handle the Anthropic-displayed `code#state` form.
+            if (raw.includes('#')) {
+                const hash = raw.indexOf('#');
+                code = raw.slice(0, hash);
+                pastedState = raw.slice(hash + 1);
+            }
+        }
+        const st = _oauthState.claude;
         if (pastedState && st && pastedState !== st.state) {
             statusEl.textContent = '⚠ state mismatch -- this code is from a different authorize flow';
             statusEl.style.color = 'var(--red)';
+            _recomputeBackends();
             return;
         }
         if (!st) {
             statusEl.textContent = '⚠ click Authorize first (the PKCE verifier is generated then)';
             statusEl.style.color = 'var(--red)';
+            _recomputeBackends();
             return;
         }
-        e.target.dataset.code = code;
+        // Store the format install-team.sh's exchange step expects (code#state).
+        // Fall back to st.state when the user pasted only a bare code -- that
+        // way the installer can still validate state matches what the page
+        // generated. (The server-side check rejects state mismatches.)
+        e.target.dataset.code = code + '#' + (pastedState || st.state);
         statusEl.textContent = '✓ code captured -- will be exchanged on the server for the long-lived token';
         statusEl.style.color = 'var(--teal)';
+        _recomputeBackends();
     });
 }
+_setupClaudeOauth();
 
-['ops', 'comms'].forEach(a => ['claude', 'openai'].forEach(p => _setupAgentOauth(a, p)));
+// ── Auth-driven backend dropdowns ──
+// Each agent's backend <select> is rebuilt to offer only the backends that
+// have been authorized in the top-level Auth section. The "no backend"
+// placeholder stays as a required-failing default until something is authed,
+// so form.reportValidity() catches the empty case.
 
-// ── Backend-driven visibility ──
-// Each agent's auth subsection (Claude or Codex) shows only when its backend
-// is selected; hidden inputs are disabled so buildConfig never reads them.
-function _applyBackendVisibility(agent) {
-    const backend = document.getElementById(`${agent}_backend`).value;
-    document.querySelectorAll(`.agent-auth[data-when^="${agent}:"]`).forEach(div => {
-        const want = div.dataset.when.split(':')[1];
-        const visible = (want === backend);
-        div.hidden = !visible;
-        div.querySelectorAll('input, select').forEach(el => { el.disabled = !visible; });
-    });
+function _isClaudeAuthorized() {
+    // OAuth paste-back captured (BOTH the in-flight state set by Authorize
+    // AND the code captured by the input handler), OR explicit "set up later".
+    // Without the dataCode check, a half-finished Authorize (user closes the
+    // Anthropic tab before pasting) would make Claude selectable but no code
+    // would land in the blob -- installer would silently fall through.
+    const pastedCode = (document.getElementById('claude_oauth_code')?.dataset.code || '').trim();
+    return (!!_oauthState.claude && pastedCode.length > 0)
+        || document.getElementById('claude_skip').checked;
 }
-document.querySelectorAll('[data-backend-for]').forEach(sel => {
-    sel.addEventListener('change', () => _applyBackendVisibility(sel.dataset.backendFor));
+function _isCodexAuthorized() {
+    const mode = document.getElementById('codex_auth_mode').value;
+    if (!mode) return false;
+    if (mode === 'skip' || mode === 'oauth') return true;        // installer self-sufficient
+    if (mode === 'api-key-login' || mode === 'api-key-env') {
+        // Installer runs as root via sudo bash -- the user's shell OPENAI_API_KEY
+        // doesn't reach it, so api-key-env still needs the key in the blob.
+        return (document.getElementById('openai_key').value || '').trim().length > 0;
+    }
+    return false;
+}
+
+function _recomputeBackends() {
+    const claudeOk = _isClaudeAuthorized();
+    const codexOk = _isCodexAuthorized();
+    for (const agent of ['ops', 'comms']) {
+        const sel = document.getElementById(`${agent}_backend`);
+        const prev = sel.value;
+        // "Coming from the unauthorized state" = the only option right now is
+        // the "-- authorize a backend above --" placeholder. This is the only
+        // moment we auto-pick a backend; subsequent state changes force the
+        // user to explicitly re-pick, so an invalidated selection never
+        // silently flips to the surviving backend.
+        const wasUnauthed = sel.options.length === 0
+            || (sel.options.length === 1 && sel.options[0].textContent.includes('authorize a backend'));
+        sel.innerHTML = '';
+        if (!claudeOk && !codexOk) {
+            const opt = document.createElement('option');
+            opt.value = ''; opt.textContent = '-- authorize a backend above --'; opt.selected = true;
+            sel.appendChild(opt);
+        } else {
+            const placeholder = document.createElement('option');
+            placeholder.value = ''; placeholder.textContent = '-- pick a backend --'; placeholder.disabled = true;
+            sel.appendChild(placeholder);
+            if (claudeOk) sel.appendChild(new Option('claude', 'claude'));
+            if (codexOk)  sel.appendChild(new Option('codex',  'codex'));
+            if ((prev === 'claude' && claudeOk) || (prev === 'codex' && codexOk)) {
+                sel.value = prev;                      // preserve still-valid pick
+            } else if (wasUnauthed) {
+                sel.value = claudeOk ? 'claude' : 'codex';   // first auth -> auto-pick
+            } else {
+                sel.value = '';                        // prior pick invalidated -> force re-pick
+            }
+        }
+    }
+}
+
+// Wire the top-level auth inputs to recompute on every change.
+document.getElementById('claude_skip').addEventListener('change', (e) => {
+    // Toggle the visibility of the paste box but NEVER destroy any captured
+    // OAuth state -- the buildConfig gate below honours the latest skip flag,
+    // so a user who Authorize-pastes, ticks skip, unticks skip can still ship
+    // the captured code. (The earlier "clear on tick" version trapped users
+    // in a state where un-ticking left no visible way back to OAuth.)
+    const paste = document.getElementById('claude_oauth_paste');
+    paste.hidden = e.target.checked || !_oauthState.claude;
+    _recomputeBackends();
 });
-['ops', 'comms'].forEach(_applyBackendVisibility);
+document.getElementById('codex_auth_mode').addEventListener('change', () => {
+    const mode = document.getElementById('codex_auth_mode').value;
+    const needsKey = (mode === 'api-key-login' || mode === 'api-key-env');
+    document.getElementById('openai_key_label').hidden = !needsKey;
+    document.getElementById('openai_key').hidden = !needsKey;
+    _recomputeBackends();
+});
+document.getElementById('openai_key').addEventListener('input', _recomputeBackends);
+
+_recomputeBackends();
 
 // Integration fields stay visible so the user can see what each one needs;
 // the toggle only decides whether buildConfig emits the values (gated on
@@ -503,39 +547,61 @@ function buildConfig() {
 
     const opsBackend = v('ops_backend');
     const commsBackend = v('comms_backend');
+
+    // Fail-closed guard: every agent must point at an authorized backend.
+    // (HTML5 `required` catches the empty-value case but cannot catch the
+    // cross-mismatch case -- e.g. claude is selected after we authorized only
+    // codex -- so the throw is the actual contract.) Submit handler already
+    // catches and renders into #err.
+    for (const [agent, backend] of [['ops', opsBackend], ['comms', commsBackend]]) {
+        if (backend !== 'claude' && backend !== 'codex') {
+            throw new Error(`Pick a backend for ${agent} (authorize one first if the dropdown is empty)`);
+        }
+        if (backend === 'claude' && !_isClaudeAuthorized()) {
+            throw new Error(`${agent} is set to Claude but Claude is not authorized -- click Authorize or tick Set up later`);
+        }
+        if (backend === 'codex' && !_isCodexAuthorized()) {
+            throw new Error(`${agent} is set to Codex but Codex auth mode requires more input above`);
+        }
+    }
+
     cfg['AGENT_BACKEND_' + suffix(ops)] = opsBackend;
     cfg['AGENT_BACKEND_' + suffix(comms)] = commsBackend;
 
-    // Auth is per-agent in the UI but env vars are shared, so we collect from
-    // each agent that selected the matching backend and prefer comms when both
-    // would set the same key (last-wins on the install side either way).
+    // Single source of credentials -- all Claude agents share the same OAuth,
+    // all Codex agents share the same auth mode + key. True per-agent codes
+    // are deferred; if/when we add them, install.sh's allowlist regex
+    // (currently AGENT_BACKEND|NOSTR_NSEC_INPUT|NOSTR_ALLOWED_NPUBS_INPUT)
+    // must be extended to include CLAUDE_OAUTH_CODE / CLAUDE_OAUTH_VERIFIER
+    // suffixes as well -- the regex does NOT match them today.
     const dataCode = id => (document.getElementById(id)?.dataset.code || '').trim();
-    const claudeAgents = ['comms', 'ops'].filter(a => (a === 'comms' ? commsBackend : opsBackend) === 'claude');
-    const codexAgents  = ['comms', 'ops'].filter(a => (a === 'comms' ? commsBackend : opsBackend) === 'codex');
+    const wantsClaude = opsBackend === 'claude' || commsBackend === 'claude';
+    const wantsCodex  = opsBackend === 'codex'  || commsBackend === 'codex';
 
-    // Claude auth: OAuth paste-back code+verifier (the manual-token-paste
-    // input was removed -- automation can still inject CLAUDE_TOKEN via the
-    // env-only path the installer continues to accept).
-    for (const a of claudeAgents) {
-        const code = dataCode(`${a}_claude_oauth_code`);
-        if (code && _oauthState[a].claude) {
+    // Claude: emit OAuth code+verifier if captured AND user hasn't explicitly
+    // chosen the set-up-later path. Emit NOTHING for set-up-later
+    // (SKIP_CLAUDE_AUTH would skip CLI installation too, which we don't want).
+    // The skip-flag gate here lets the user ping-pong skip on/off without
+    // losing captured OAuth state -- the latest checkbox state always wins.
+    const claudeSkipChecked = document.getElementById('claude_skip').checked;
+    if (wantsClaude && _oauthState.claude && !claudeSkipChecked) {
+        const code = dataCode('claude_oauth_code');
+        if (code) {
             cfg.CLAUDE_OAUTH_CODE = code;
-            cfg.CLAUDE_OAUTH_VERIFIER = _oauthState[a].claude.verifier;
-            break;
+            cfg.CLAUDE_OAUTH_VERIFIER = _oauthState.claude.verifier;
         }
     }
-    // Codex auth mode + OpenAI key (api-key-login) + OpenAI OAuth.
-    for (const a of codexAgents) {
-        const mode = v(`${a}_codex_auth_mode`);
-        if (mode && !cfg.CODEX_AUTH_MODE) cfg.CODEX_AUTH_MODE = mode;
-        const code = dataCode(`${a}_openai_oauth_code`);
-        if (code && _oauthState[a].openai && !cfg.OPENAI_OAUTH_CODE) {
-            cfg.OPENAI_OAUTH_CODE = code;
-            cfg.OPENAI_OAUTH_VERIFIER = _oauthState[a].openai.verifier;
-            if (!cfg.CODEX_AUTH_MODE) cfg.CODEX_AUTH_MODE = 'chatgpt-oauth';
+    // Codex: emit the auth mode + the OpenAI API key (key only for the two
+    // api-key modes; if the user pasted a key, picked api-key-login, then
+    // switched to skip/oauth, the key is hidden in the UI but still in the
+    // input -- gate emission here so it doesn't end up in the blob).
+    if (wantsCodex) {
+        const mode = v('codex_auth_mode');
+        if (mode) cfg.CODEX_AUTH_MODE = mode;
+        if (mode === 'api-key-login' || mode === 'api-key-env') {
+            const key = v('openai_key');
+            if (key && !cfg.OPENAI_API_KEY_INPUT) cfg.OPENAI_API_KEY_INPUT = key;
         }
-        const key = v(`${a}_openai_key`);
-        if (key && !cfg.OPENAI_API_KEY_INPUT) cfg.OPENAI_API_KEY_INPUT = key;
     }
     // Voice OpenAI key: presence of the key is what enables TTS/STT for Telegram
     // and WhatsApp. The installer's per-integration gate decides where it lands.
