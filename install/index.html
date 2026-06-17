@@ -367,7 +367,13 @@ const CLAUDE_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
 // "Authorization failed - invalid request format" from Anthropic.
 const CLAUDE_AUTHORIZE_URL = 'https://claude.com/cai/oauth/authorize';
 const CLAUDE_MANUAL_REDIRECT_URL = 'https://platform.claude.com/oauth/code/callback';
-const CLAUDE_SCOPE = 'user:profile user:inference user:sessions:claude_code user:mcp_servers';
+// `claude setup-token` actually requests only user:inference -- the wider scope
+// set (profile / sessions:claude_code / mcp_servers) appears in the binary's
+// doctor-help text but is for the interactive Claude Code session, not the
+// long-lived API token. Requesting more than this gets a 400 "Invalid request
+// format" from Anthropic when the user clicks Authorize on the consent page,
+// confirmed via Playwright + a verbatim working URL from Kai's CLI.
+const CLAUDE_SCOPE = 'user:inference';
 const OPENAI_CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const OPENAI_CODEX_SCOPE = 'openid profile email offline_access api.connectors.read api.connectors.invoke';
 
