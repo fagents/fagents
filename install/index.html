@@ -161,13 +161,8 @@ a { color: var(--teal); }
             <select id="ops_backend" data-backend-for="ops"><option value="claude">claude</option><option value="codex">codex</option></select>
             <!-- Auth — Claude (visible when ops_backend = claude) -->
             <div class="agent-auth" data-when="ops:claude" hidden style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--line);">
-                <label for="ops_claude_token">Claude OAuth token <span class="hint">(paste an existing token, or click <em>Authorize</em> below)</span></label>
-                <input type="text" autocomplete="off" spellcheck="false" id="ops_claude_token" placeholder="leave blank to set up later">
-                <div style="display: flex; gap: 0.6rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap;">
-                    <button type="button" id="ops_claude_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with Claude &rarr;</button>
-                    <span class="hint" style="font-size: 0.8rem;">no token yet? authorize here</span>
-                </div>
-                <p class="note" style="margin-top: 0.5rem; font-size: 0.8rem; color: #888;">If <em>Authorize</em> doesn't work, leave this blank and run <code>sudo -u ops claude setup-token</code> on your server after install &mdash; same persistent token, manual paste.</p>
+                <button type="button" id="ops_claude_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with Claude &rarr;</button>
+                <p class="note" style="margin-top: 0.5rem; font-size: 0.8rem; color: #888;">If <em>Authorize</em> doesn't work, run <code>sudo -u ops claude setup-token</code> on your server after install &mdash; same persistent token, manual paste.</p>
                 <div id="ops_claude_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
                     <label for="ops_claude_oauth_code" style="margin-top: 0;">Paste the authorization code shown by Anthropic</label>
                     <input type="text" id="ops_claude_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
@@ -207,13 +202,8 @@ a { color: var(--teal); }
             <select id="comms_backend" data-backend-for="comms"><option value="claude">claude</option><option value="codex">codex</option></select>
             <!-- Auth — Claude (visible when comms_backend = claude) -->
             <div class="agent-auth" data-when="comms:claude" hidden style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--line);">
-                <label for="comms_claude_token">Claude OAuth token <span class="hint">(paste an existing token, or click <em>Authorize</em> below)</span></label>
-                <input type="text" autocomplete="off" spellcheck="false" id="comms_claude_token" placeholder="leave blank to set up later">
-                <div style="display: flex; gap: 0.6rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap;">
-                    <button type="button" id="comms_claude_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with Claude &rarr;</button>
-                    <span class="hint" style="font-size: 0.8rem;">no token yet? authorize here</span>
-                </div>
-                <p class="note" style="margin-top: 0.5rem; font-size: 0.8rem; color: #888;">If <em>Authorize</em> doesn't work, leave this blank and run <code>sudo -u comms claude setup-token</code> on your server after install &mdash; same persistent token, manual paste.</p>
+                <button type="button" id="comms_claude_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with Claude &rarr;</button>
+                <p class="note" style="margin-top: 0.5rem; font-size: 0.8rem; color: #888;">If <em>Authorize</em> doesn't work, run <code>sudo -u comms claude setup-token</code> on your server after install &mdash; same persistent token, manual paste.</p>
                 <div id="comms_claude_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
                     <label for="comms_claude_oauth_code" style="margin-top: 0;">Paste the authorization code shown by Anthropic</label>
                     <input type="text" id="comms_claude_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
@@ -523,7 +513,9 @@ function buildConfig() {
     const claudeAgents = ['comms', 'ops'].filter(a => (a === 'comms' ? commsBackend : opsBackend) === 'claude');
     const codexAgents  = ['comms', 'ops'].filter(a => (a === 'comms' ? commsBackend : opsBackend) === 'codex');
 
-    // Claude auth: OAuth paste-back wins over manual token; iterate comms-first.
+    // Claude auth: OAuth paste-back code+verifier (the manual-token-paste
+    // input was removed -- automation can still inject CLAUDE_TOKEN via the
+    // env-only path the installer continues to accept).
     for (const a of claudeAgents) {
         const code = dataCode(`${a}_claude_oauth_code`);
         if (code && _oauthState[a].claude) {
@@ -531,8 +523,6 @@ function buildConfig() {
             cfg.CLAUDE_OAUTH_VERIFIER = _oauthState[a].claude.verifier;
             break;
         }
-        const tok = v(`${a}_claude_token`);
-        if (tok) { cfg.CLAUDE_TOKEN = tok; break; }
     }
     // Codex auth mode + OpenAI key (api-key-login) + OpenAI OAuth.
     for (const a of codexAgents) {
