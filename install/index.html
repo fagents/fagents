@@ -167,6 +167,7 @@ a { color: var(--teal); }
                     <button type="button" id="ops_claude_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with Claude &rarr;</button>
                     <span class="hint" style="font-size: 0.8rem;">no token yet? authorize here</span>
                 </div>
+                <p class="note" style="margin-top: 0.5rem; font-size: 0.8rem; color: #888;">If <em>Authorize</em> doesn't work, leave this blank and run <code>sudo -u ops claude setup-token</code> on your server after install &mdash; same persistent token, manual paste.</p>
                 <div id="ops_claude_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
                     <label for="ops_claude_oauth_code" style="margin-top: 0;">Paste the authorization code shown by Anthropic</label>
                     <input type="text" id="ops_claude_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
@@ -212,6 +213,7 @@ a { color: var(--teal); }
                     <button type="button" id="comms_claude_authorize" class="secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Authorize with Claude &rarr;</button>
                     <span class="hint" style="font-size: 0.8rem;">no token yet? authorize here</span>
                 </div>
+                <p class="note" style="margin-top: 0.5rem; font-size: 0.8rem; color: #888;">If <em>Authorize</em> doesn't work, leave this blank and run <code>sudo -u comms claude setup-token</code> on your server after install &mdash; same persistent token, manual paste.</p>
                 <div id="comms_claude_oauth_paste" hidden style="margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 5px;">
                     <label for="comms_claude_oauth_code" style="margin-top: 0;">Paste the authorization code shown by Anthropic</label>
                     <input type="text" id="comms_claude_oauth_code" placeholder="auth code (or the full callback URL)" autocomplete="off">
