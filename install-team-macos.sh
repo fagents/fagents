@@ -265,6 +265,42 @@ done
 # Claude OAuth token comes from env (CLAUDE_TOKEN); empty = set up manually later.
 CLAUDE_TOKEN="${CLAUDE_TOKEN:-}"
 
+# OAuth code+verifier from fagents.ai/install/'s Authorize button: exchange them
+# here for the {access,refresh}_token pair Claude Code stores in credentials.json.
+# Anthropic returns a misleading "rate_limit_error" without the User-Agent and
+# anthropic-beta headers (even on first request); both are required.
+#
+# Pro/Max subscriptions only grant scope=user:inference -- the access_token works
+# directly for /v1/messages, but expires in 8 hours, so we MUST also persist
+# refresh_token + expiresAt so the CLI can rotate. Console-account API-key
+# mint (org:create_api_key scope) is silently dropped for subscriptions, so we
+# don't try.
+CLAUDE_OAUTH_HAS_TOKENS=""
+if [[ -z "$CLAUDE_TOKEN" && -n "${CLAUDE_OAUTH_CODE:-}" && -n "${CLAUDE_OAUTH_VERIFIER:-}" ]]; then
+    # The auth code Anthropic shows is "code#state" formatted; split before sending.
+    _oauth_code="${CLAUDE_OAUTH_CODE%%#*}"
+    _oauth_state="${CLAUDE_OAUTH_CODE##*#}"
+    _oauth_resp=$(curl -sS -X POST "https://platform.claude.com/v1/oauth/token" \
+        -H "User-Agent: claude-cli/external-fagents-install" \
+        -H "Content-Type: application/json" \
+        -H "anthropic-beta: oauth-2025-04-20" \
+        -d "$(jq -nc \
+            --arg c "$_oauth_code" --arg s "$_oauth_state" --arg v "$CLAUDE_OAUTH_VERIFIER" \
+            '{grant_type:"authorization_code",code:$c,state:$s,code_verifier:$v,
+              client_id:"9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+              redirect_uri:"https://platform.claude.com/oauth/code/callback"}')" 2>/dev/null \
+        || echo '')
+    CLAUDE_OAUTH_ACCESS_TOKEN=$(printf '%s' "$_oauth_resp" | jq -r '.access_token // empty' 2>/dev/null)
+    CLAUDE_OAUTH_REFRESH_TOKEN=$(printf '%s' "$_oauth_resp" | jq -r '.refresh_token // empty' 2>/dev/null)
+    CLAUDE_OAUTH_EXPIRES_IN=$(printf '%s' "$_oauth_resp" | jq -r '.expires_in // 28800' 2>/dev/null)
+    if [[ -n "$CLAUDE_OAUTH_ACCESS_TOKEN" && -n "$CLAUDE_OAUTH_REFRESH_TOKEN" ]]; then
+        CLAUDE_TOKEN="$CLAUDE_OAUTH_ACCESS_TOKEN"   # signals "auth provided" to step 6
+        CLAUDE_OAUTH_HAS_TOKENS=1
+    else
+        echo "WARN: Claude OAuth code exchange failed. Response: $_oauth_resp" >&2
+    fi
+fi
+
 # OpenAI API key powers Telegram/WhatsApp voice AND Codex api-key auth, so it is
 # consumed here independently of any single integration (not gated on Telegram).
 [[ -n "${OPENAI_API_KEY_INPUT:-}" ]] && OPENAI_API_KEY="$OPENAI_API_KEY_INPUT"
@@ -1141,13 +1177,32 @@ if [[ ${#CLAUDE_AGENTS[@]} -gt 0 && -z "$SKIP_CLAUDE_AUTH" ]]; then
         for user in "${CLAUDE_AGENTS[@]}"; do
             agent_home="/Users/$user"
             agent_ws="$agent_home/workspace/$user"
-            if ! grep -q "CLAUDE_CODE_OAUTH_TOKEN" "$agent_ws/.env" 2>/dev/null; then
-                echo "export CLAUDE_CODE_OAUTH_TOKEN=\"$CLAUDE_TOKEN\"" >> "$agent_ws/.env"
-            fi
-            chown "$user:fagent" "$agent_ws/.env"
-            chmod 600 "$agent_ws/.env"
             sudo -Hu"$user" bash -lc "mkdir -p ~/.claude && echo '{\"hasCompletedOnboarding\": true}' > ~/.claude.json"
-            log_ok "$user: Claude auth configured"
+            if [[ -n "$CLAUDE_OAUTH_HAS_TOKENS" ]]; then
+                # Refresh-token flow (Pro/Max subscribers): write the JSON shape
+                # the CLI's credentials.json reader expects. Don't put the token
+                # in .env -- CLAUDE_CODE_OAUTH_TOKEN would override the file at
+                # runtime and freeze us at the 8-hour expiry.
+                _expires_at_ms=$(( ($(date +%s) + CLAUDE_OAUTH_EXPIRES_IN) * 1000 ))
+                _cred_json=$(jq -nc \
+                    --arg at "$CLAUDE_OAUTH_ACCESS_TOKEN" \
+                    --arg rt "$CLAUDE_OAUTH_REFRESH_TOKEN" \
+                    --argjson ex "$_expires_at_ms" \
+                    '{claudeAiOauth:{accessToken:$at,refreshToken:$rt,expiresAt:$ex,
+                                     scopes:["user:inference"],subscriptionType:null,
+                                     rateLimitTier:null,
+                                     clientId:"9d1c250a-e61b-44d9-88ed-5944d1962f5e"}}')
+                sudo -Hu"$user" bash -lc "printf '%s' $(printf '%q' "$_cred_json") > ~/.claude/.credentials.json && chmod 600 ~/.claude/.credentials.json"
+                log_ok "$user: Claude OAuth credentials.json written (access+refresh)"
+            else
+                # Legacy long-lived API key (Console/manual paste): env var path.
+                if ! grep -q "CLAUDE_CODE_OAUTH_TOKEN" "$agent_ws/.env" 2>/dev/null; then
+                    echo "export CLAUDE_CODE_OAUTH_TOKEN=\"$CLAUDE_TOKEN\"" >> "$agent_ws/.env"
+                fi
+                chown "$user:fagent" "$agent_ws/.env"
+                chmod 600 "$agent_ws/.env"
+                log_ok "$user: Claude auth configured"
+            fi
         done
     else
         echo "  Claude auth skipped — set up manually later."
