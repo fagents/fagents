@@ -402,7 +402,10 @@ function _setupAgentOauth(agent, provider) {
 
     btn.addEventListener('click', async () => {
         const { verifier, challenge } = await _pkcePair();
-        const stateBytes = new Uint8Array(16);
+        // 32 bytes (not 16): Anthropic's consent page POST rejects short state
+        // with "Invalid request format" even though the URL is otherwise valid.
+        // Matches what `claude setup-token` generates (43-char base64url).
+        const stateBytes = new Uint8Array(32);
         crypto.getRandomValues(stateBytes);
         const state = _b64url(stateBytes);
         _oauthState[agent][provider] = { verifier, state };
