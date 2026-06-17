@@ -355,7 +355,15 @@ function suffix(name) { return name.trim().toUpperCase(); }
 // the user can paste it back here. The code + PKCE verifier ride the blob to
 // the server, which does the exchange (no CORS issue from the server side).
 const CLAUDE_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
-const CLAUDE_SCOPE = 'user:inference';
+// Match the Claude Code CLI's API-key paste-back flow exactly: authorize on
+// platform.claude.com (NOT claude.ai -- that's the subscription flow), use
+// Anthropic's hosted paste-back callback as redirect_uri (the CLI calls this
+// MANUAL_REDIRECT_URL in its config), and request the full scope set Claude
+// Code itself asks for. Mismatching any of these gets a generic "Authorization
+// failed - invalid request format" from Anthropic.
+const CLAUDE_AUTHORIZE_URL = 'https://platform.claude.com/oauth/authorize';
+const CLAUDE_MANUAL_REDIRECT_URL = 'https://platform.claude.com/oauth/code/callback';
+const CLAUDE_SCOPE = 'user:profile user:inference user:sessions:claude_code user:mcp_servers';
 const OPENAI_CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const OPENAI_CODEX_SCOPE = 'openid profile email offline_access api.connectors.read api.connectors.invoke';
 
@@ -390,12 +398,12 @@ function _setupAgentOauth(agent, provider) {
         _oauthState[agent][provider] = { verifier, state };
         let url, params;
         if (provider === 'claude') {
-            url = 'https://claude.ai/oauth/authorize?';
+            url = CLAUDE_AUTHORIZE_URL + '?';
             params = new URLSearchParams({
                 code: 'true',  // shows code on Anthropic's page when the loopback can't be reached
                 client_id: CLAUDE_CLIENT_ID,
                 response_type: 'code',
-                redirect_uri: 'http://localhost:0/callback',
+                redirect_uri: CLAUDE_MANUAL_REDIRECT_URL,
                 scope: CLAUDE_SCOPE,
                 code_challenge: challenge,
                 code_challenge_method: 'S256',
