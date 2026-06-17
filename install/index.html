@@ -173,18 +173,9 @@ a { color: var(--teal); }
             <!-- Codex row -->
             <div data-auth-row="codex" style="margin-top: 1.1rem; padding-top: 1rem; border-top: 1px dashed var(--line);">
                 <strong>Codex CLI</strong>
-                <span class="hint">(OpenAI)</span>
-                <label for="codex_auth_mode" style="margin-top: 0.4rem;">Auth mode</label>
-                <select id="codex_auth_mode">
-                    <option value="">(not configured)</option>
-                    <option value="api-key-login">Paste OpenAI API key (codex login)</option>
-                    <option value="api-key-env">Paste OpenAI API key (stored in agent .env)</option>
-                    <option value="oauth">ChatGPT device login &mdash; the install will print a verification URL</option>
-                    <option value="skip">Skip &mdash; I'll set up after install</option>
-                </select>
-                <label id="openai_key_label" for="openai_key" style="margin-top: 0.5rem;" hidden>OpenAI API key <span class="hint">&mdash; <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">create one &rarr;</a></span></label>
-                <input type="text" autocomplete="off" spellcheck="false" id="openai_key" placeholder="sk-..." hidden>
-                <p class="note" id="codex_oauth_hint" hidden style="margin-top: 0.5rem; font-size: 0.85rem; color: #888;">The install command prints a one-time URL and a code. Open the URL in any browser, sign in with your ChatGPT account, then return to this terminal so codex can finish. Stay at the terminal until install completes.</p>
+                <span class="hint">(OpenAI; uses your ChatGPT subscription)</span>
+                <p class="note" style="margin-top: 0.5rem;">When the install runs, codex will print a verification URL + one-time code. Open the URL in any browser, sign in with your ChatGPT account, then return to the install terminal so codex can finish. Stay at the terminal until install completes.</p>
+                <label style="display: block; margin-top: 0.5rem;"><input type="checkbox" id="codex_skip"> Set up later &mdash; I'll run <code>codex login</code> on the server after install.</label>
             </div>
         </fieldset>
 
@@ -460,21 +451,12 @@ function _isClaudeAuthorized() {
     return (!!_oauthState.claude && pastedCode.length > 0)
         || document.getElementById('claude_skip').checked;
 }
-function _isCodexAuthorized() {
-    const mode = document.getElementById('codex_auth_mode').value;
-    if (!mode) return false;
-    if (mode === 'skip' || mode === 'oauth') return true;        // installer self-sufficient
-    if (mode === 'api-key-login' || mode === 'api-key-env') {
-        // Installer runs as root via sudo bash -- the user's shell OPENAI_API_KEY
-        // doesn't reach it, so api-key-env still needs the key in the blob.
-        return (document.getElementById('openai_key').value || '').trim().length > 0;
-    }
-    return false;
-}
-
 function _recomputeBackends() {
     const claudeOk = _isClaudeAuthorized();
-    const codexOk = _isCodexAuthorized();
+    // Codex is always installable via device-auth -- the page doesn't gate
+    // selectability on any input. "Set up later" is a runtime mode the
+    // installer respects (CODEX_AUTH_MODE=skip), not an availability gate.
+    const codexOk = true;
     for (const agent of ['ops', 'comms']) {
         const sel = document.getElementById(`${agent}_backend`);
         const prev = sel.value;
@@ -518,16 +500,11 @@ document.getElementById('claude_skip').addEventListener('change', (e) => {
     paste.hidden = e.target.checked || !_oauthState.claude;
     _recomputeBackends();
 });
-document.getElementById('codex_auth_mode').addEventListener('change', () => {
-    const mode = document.getElementById('codex_auth_mode').value;
-    const needsKey = (mode === 'api-key-login' || mode === 'api-key-env');
-    document.getElementById('openai_key_label').hidden = !needsKey;
-    document.getElementById('openai_key').hidden = !needsKey;
-    // Show the device-auth heads-up paragraph only when oauth is selected.
-    document.getElementById('codex_oauth_hint').hidden = (mode !== 'oauth');
-    _recomputeBackends();
-});
-document.getElementById('openai_key').addEventListener('input', _recomputeBackends);
+// The codex_skip checkbox only affects which CODEX_AUTH_MODE value the blob
+// emits (oauth vs skip); both states make codex selectable, so the dropdown
+// rebuild is a no-op today -- the listener is kept for parity with claude_skip
+// and to make future "skip influences backend availability" tweaks one line.
+document.getElementById('codex_skip').addEventListener('change', _recomputeBackends);
 
 _recomputeBackends();
 
@@ -563,9 +540,7 @@ function buildConfig() {
         if (backend === 'claude' && !_isClaudeAuthorized()) {
             throw new Error(`${agent} is set to Claude but Claude is not authorized -- click Authorize or tick Set up later`);
         }
-        if (backend === 'codex' && !_isCodexAuthorized()) {
-            throw new Error(`${agent} is set to Codex but Codex auth mode requires more input above`);
-        }
+        // Codex is always installable via device-auth; no per-mode gate.
     }
 
     cfg['AGENT_BACKEND_' + suffix(ops)] = opsBackend;
@@ -599,19 +574,18 @@ function buildConfig() {
     // switched to skip/oauth, the key is hidden in the UI but still in the
     // input -- gate emission here so it doesn't end up in the blob).
     if (wantsCodex) {
-        const mode = v('codex_auth_mode');
-        if (mode) cfg.CODEX_AUTH_MODE = mode;
-        if (mode === 'api-key-login' || mode === 'api-key-env') {
-            const key = v('openai_key');
-            if (key && !cfg.OPENAI_API_KEY_INPUT) cfg.OPENAI_API_KEY_INPUT = key;
-        }
+        // Page surfaces only the ChatGPT device-login path + a "Set up later"
+        // escape hatch. Power users / automation can still set CODEX_AUTH_MODE
+        // to api-key-login / api-key-env via env vars when running the install
+        // command; install-team*.sh's case statement accepts all four modes.
+        cfg.CODEX_AUTH_MODE = document.getElementById('codex_skip').checked ? 'skip' : 'oauth';
     }
-    // Voice OpenAI key: presence of the key is what enables TTS/STT for Telegram
-    // and WhatsApp. The installer's per-integration gate decides where it lands.
-    if (!cfg.OPENAI_API_KEY_INPUT) {
-        const voiceKey = v('tg_openai_voice_key');
-        if (voiceKey) cfg.OPENAI_API_KEY_INPUT = voiceKey;
-    }
+    // Voice OpenAI key: the SOLE in-page source for OPENAI_API_KEY_INPUT now
+    // that Codex auth is device-login only. Presence of the key is what
+    // enables TTS/STT for Telegram and WhatsApp; the installer's per-integration
+    // gate decides where it lands.
+    const voiceKey = v('tg_openai_voice_key');
+    if (voiceKey) cfg.OPENAI_API_KEY_INPUT = voiceKey;
 
     if (on('telegram_enable')) {
         cfg.TELEGRAM_ENABLE = '1';

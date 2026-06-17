@@ -77,6 +77,34 @@ for k in HUMAN_NAMES_INPUT OPS_AGENT_NAME COMMS_AGENT_NAME; do
     fi
 done
 
+# Stale-reference guard: when a UI control is removed from the page, the JS
+# accesses it via getElementById/v() must go too -- otherwise the page throws
+# at load on the first `.value` of null. Each pattern is exact enough not to
+# false-positive against still-valid neighbours (e.g. `tg_openai_voice_key`).
+absent() {
+    if grep -qF -- "$1" "$PAGE"; then
+        not_ok "$2"
+    else
+        ok "$2"
+    fi
+}
+
+# Removed in this feature: Codex auth mode <select>, the OpenAI key input
+# + its label, the codex_oauth_hint paragraph, and the _isCodexAuthorized
+# function.
+absent 'id="codex_auth_mode"'            "stale: <select id=codex_auth_mode> removed"
+absent 'id="openai_key"'                 "stale: <input id=openai_key> removed"
+absent 'id="openai_key_label"'           "stale: <label id=openai_key_label> removed"
+absent 'id="codex_oauth_hint"'           "stale: <p id=codex_oauth_hint> removed"
+absent '_isCodexAuthorized'              "stale: _isCodexAuthorized function removed"
+# JS access sites for the removed ids (both quote styles).
+absent "getElementById('codex_auth_mode')" "stale: getElementById('codex_auth_mode') removed"
+absent 'getElementById("codex_auth_mode")' "stale: getElementById(\"codex_auth_mode\") removed"
+absent "getElementById('openai_key')"      "stale: getElementById('openai_key') removed"
+absent 'getElementById("openai_key")'      "stale: getElementById(\"openai_key\") removed"
+absent "v('openai_key')"                   "stale: v('openai_key') removed"
+absent 'v("openai_key")'                   "stale: v(\"openai_key\") removed"
+
 echo ""
 echo "# $PASS passed, $FAIL failed ($NUM total)"
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1
