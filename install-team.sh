@@ -1256,6 +1256,22 @@ if [[ ${#CODEX_AGENTS[@]} -gt 0 ]]; then
                     log_warn "$user: codex login failed — set up manually later"
                     continue
                 }
+                # WRITE_CODEX_MODEL_OVERRIDE: codex's default model gpt-5.3-codex
+                # isn't accepted on ChatGPT subscription accounts (auth_mode=chatgpt).
+                # Force gpt-5.5, which IS accepted on this tier. Remove this when
+                # codex CLI picks the right model automatically for the auth tier.
+                # (e2e-tests/test-codex-oauth-prompt.sh extracts this block by marker.)
+                # CODEX_HOME is passed via the wrapper, matching the login calls
+                # above; the heredoc body runs inside the per-agent shell.
+                su - "$user" -c "CODEX_HOME='$codex_home' bash" <<'WRITE_CODEX_MODEL_OVERRIDE_BODY'
+cfg="$CODEX_HOME/config.toml"
+if ! grep -Eq "^[[:space:]]*model[[:space:]]*=" "$cfg" 2>/dev/null; then
+    tmp=$(mktemp)
+    { echo 'model = "gpt-5.5"'; echo ""; cat "$cfg" 2>/dev/null || true; } > "$tmp"
+    mv "$tmp" "$cfg"
+    chmod 600 "$cfg"
+fi
+WRITE_CODEX_MODEL_OVERRIDE_BODY
                 _status=$(su - "$user" -c "CODEX_HOME='$codex_home' codex login status" 2>&1) || true
                 if echo "$_status" | grep -q "^Logged in"; then
                     log_ok "$user: Codex auth configured (OAuth)"
