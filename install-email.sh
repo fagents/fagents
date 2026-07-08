@@ -125,6 +125,9 @@ mkdir -p "$AGENTS_DIR"
 _first_token=""
 for spec in "${AGENT_SPECS[@]}"; do
     IFS=':' read -r name token from_addr smtp_user smtp_pass imap_user imap_pass unix_user <<< "$spec"
+    # An empty token writes MCP_API_KEY= which the server would treat as a
+    # passwordless agent reachable with an empty x-api-key header. Refuse it.
+    [[ -z "$token" ]] && { echo "ERROR: no token for agent '$name'" >&2; exit 1; }
     [[ -z "$smtp_user" ]] && { echo "ERROR: no smtp_user for agent '$name'" >&2; exit 1; }
     [[ -z "$smtp_pass" ]] && { echo "ERROR: no smtp_pass for agent '$name'" >&2; exit 1; }
     [[ -z "$imap_user" ]] && { echo "ERROR: no imap_user for agent '$name'" >&2; exit 1; }
